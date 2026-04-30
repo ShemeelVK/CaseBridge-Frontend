@@ -1,0 +1,31 @@
+@import "tailwindcss";
+@config "../tailwind.config.js";
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@400;600;700&display=swap');
+
+@layer base {
+  body {
+    @apply bg-white text-law-navy font-sans antialiased;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-serif font-bold;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply px-6 py-2 bg-law-navy text-white rounded-md shadow-sm transition-all duration-200 hover:bg-primary-900 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-gold {
+    @apply px-6 py-2 bg-accent-gold text-white rounded-md shadow-sm transition-all duration-200 hover:bg-accent-gold-dark active:scale-95 disabled:opacity-50;
+  }
+
+  .input-field {
+    @apply w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-accent-gold focus:border-transparent outline-none transition-all duration-200;
+  }
+
+  .glass-card {
+    @apply bg-white/80 backdrop-blur-md border border-white/20 shadow-xl rounded-xl;
+  }
+}
