@@ -88,6 +88,15 @@ const CasePreviewModal = ({ caseData, onClose }: CasePreviewModalProps) => {
                   <p className="text-sm font-bold text-law-navy">{formatDate(caseData.createdAt)}</p>
                 </div>
               </div>
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-full bg-purple-50 flex items-center justify-center text-purple-600">
+                  <span className="text-xs font-bold">{caseData.clientName?.charAt(0) || 'C'}</span>
+                </div>
+                <div>
+                  <p className="text-[10px] text-law-slate font-bold uppercase tracking-wider">Client</p>
+                  <p className="text-sm font-bold text-law-navy truncate max-w-[120px]">{caseData.clientName || 'Private Client'}</p>
+                </div>
+              </div>
             </div>
 
             <button 

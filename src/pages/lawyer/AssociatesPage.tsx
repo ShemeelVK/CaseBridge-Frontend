@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Users, UserPlus, Mail, Briefcase, Hash, Search } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { firmService } from '../../services/firmService';
@@ -18,7 +18,7 @@ const AssociatesPage = () => {
     try {
       setLoading(true);
       const data = await firmService.getMyAssociates(axiosPrivate);
-      setAssociates(data);
+      setAssociates(data.associates || []);
     } catch (error) {
       toast.error('Failed to load associates');
       console.error(error);
@@ -32,8 +32,8 @@ const AssociatesPage = () => {
   }, []);
 
   const filteredAssociates = associates.filter(a => 
-    a.fullName.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    a.specialization?.toLowerCase().includes(searchTerm.toLowerCase())
+    (a.FullName ?? '').toLowerCase().includes(searchTerm.toLowerCase()) || 
+    (a.Specialization ?? '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (
@@ -101,7 +101,7 @@ const AssociatesPage = () => {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.1 }}
-              key={associate.id}
+              key={associate.Id}
               className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow group relative overflow-hidden"
             >
               {/* Decorative background element */}
@@ -109,10 +109,10 @@ const AssociatesPage = () => {
               
               <div className="flex items-start gap-4 mb-6 relative z-10">
                 <div className="w-14 h-14 bg-law-navy text-white rounded-full flex items-center justify-center font-bold text-xl shadow-sm">
-                  {associate.fullName.charAt(0).toUpperCase()}
+                  {(associate.FullName ?? '?').charAt(0).toUpperCase()}
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold text-law-navy">{associate.fullName}</h3>
+                  <h3 className="text-lg font-bold text-law-navy">{associate.FullName}</h3>
                   <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-accent-gold/10 text-accent-gold text-xs font-semibold uppercase tracking-wider mt-1">
                     Junior Lawyer
                   </span>
@@ -122,16 +122,16 @@ const AssociatesPage = () => {
               <div className="space-y-3 relative z-10">
                 <div className="flex items-center gap-3 text-law-slate text-sm">
                   <Mail className="w-4 h-4 text-gray-400" />
-                  <span className="truncate">{associate.email}</span>
+                  <span className="truncate">{associate.Email}</span>
                 </div>
                 <div className="flex items-center gap-3 text-law-slate text-sm">
                   <Hash className="w-4 h-4 text-gray-400" />
-                  <span>{associate.enrollmentNumber}</span>
+                  <span>{associate.EnrollmentNumber}</span>
                 </div>
-                {associate.specialization && (
+                {associate.Specialization && (
                   <div className="flex items-center gap-3 text-law-slate text-sm">
                     <Briefcase className="w-4 h-4 text-gray-400" />
-                    <span>{associate.specialization}</span>
+                    <span>{associate.Specialization}</span>
                   </div>
                 )}
               </div>
@@ -139,7 +139,7 @@ const AssociatesPage = () => {
               {/* Quick actions that appear on hover */}
               <div className="absolute bottom-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
                 <button className="text-sm font-medium text-law-navy hover:text-accent-gold transition-colors">
-                  View Profile &rarr;
+                  View Profile →
                 </button>
               </div>
             </motion.div>

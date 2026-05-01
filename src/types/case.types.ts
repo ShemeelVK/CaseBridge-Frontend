@@ -8,6 +8,8 @@ export interface Case {
   status: string;
   assignedFirmId?: number;
   acceptedByUserid?: number;
+  clientName?: string;
+  lawyerName?: string;
   createdAt?: string;
   lastModifiedByUserId: number;
 }

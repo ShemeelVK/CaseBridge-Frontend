@@ -119,7 +119,6 @@ const CaseDetailsPage = () => {
               <span className="px-3 py-1.5 bg-green-500/20 text-green-300 border border-green-500/30 text-xs font-bold rounded-full">
                 {currentStatus}
               </span>
-              <span className="text-white/60 text-sm">Case #{caseData.id}</span>
             </div>
             <h1 className="text-3xl md:text-5xl font-serif font-bold leading-tight mb-4">{caseData.title}</h1>
             <div className="flex items-center gap-6 text-white/70 text-sm">

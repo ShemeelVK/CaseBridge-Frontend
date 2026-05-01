@@ -111,6 +111,16 @@ const CaseDetailsModal = ({ caseData, onClose, userRole }: CaseDetailsModalProps
                     </div>
 
                     <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-purple-50 flex items-center justify-center text-purple-600 shrink-0">
+                        <span className="font-bold">{caseData.clientName?.charAt(0) || 'C'}</span>
+                      </div>
+                      <div>
+                        <p className="text-xs text-law-slate font-medium">Client Name</p>
+                        <p className="text-sm font-bold text-law-navy">{caseData.clientName || 'Private Client'}</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 shrink-0">
                         <Calendar className="w-5 h-5" />
                       </div>

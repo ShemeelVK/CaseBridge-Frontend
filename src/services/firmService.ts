@@ -1,11 +1,17 @@
 import type { AxiosInstance } from 'axios';
 
 export interface Associate {
-  id: number;
-  fullName: string;
-  email: string;
-  enrollmentNumber: string;
-  specialization: string;
+  Id: number;
+  FullName: string;
+  Email: string;
+  EnrollmentNumber?: string;
+  Specialization: string;
+  FirmBio?: string;
+}
+
+export interface FirmMembers {
+  senior?: Associate;
+  associates: Associate[];
 }
 
 export interface AddJuniorDto {
@@ -17,8 +23,8 @@ export interface AddJuniorDto {
 }
 
 export const firmService = {
-  getMyAssociates: async (axiosPrivate: AxiosInstance): Promise<Associate[]> => {
-    const response = await axiosPrivate.get<Associate[]>('/senior/associates');
+  getMyAssociates: async (axiosPrivate: AxiosInstance): Promise<FirmMembers> => {
+    const response = await axiosPrivate.get<FirmMembers>('/senior/associates');
     return response.data;
   },
 
@@ -27,6 +33,18 @@ export const firmService = {
         data.temporaryPassword = 'Password123!';
     }
     const response = await axiosPrivate.post('/senior/add-junior', data);
+    return response.data;
+  },
+
+  updateFirmBio: async (axiosPrivate: AxiosInstance, bio: string): Promise<{ message: string }> => {
+    const response = await axiosPrivate.put('/senior/firm-bio', JSON.stringify(bio), {
+      headers: { 'Content-Type': 'application/json' }
+    });
+    return response.data;
+  },
+
+  getFirmProfile: async (axiosPrivate: AxiosInstance): Promise<{ fullName: string, email: string, firmBio: string }> => {
+    const response = await axiosPrivate.get('/User/Profile');
     return response.data;
   }
 };

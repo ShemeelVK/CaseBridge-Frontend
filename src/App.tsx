@@ -12,10 +12,14 @@ import ProtectedRoute from './components/auth/ProtectedRoute';
 import ClientDashboard from './pages/client/ClientDashboard';
 import LawyerDashboard from './pages/lawyer/LawyerDashboard';
 import JuniorDashboard from './pages/junior/JuniorDashboard';
-import Marketplace from './pages/shared/Marketplace';
+import Marketplace from './pages/shared/Marketplace'; 
 import CaseDetailsPage from './pages/shared/CaseDetailsPage';
 import AssociatesPage from './pages/lawyer/AssociatesPage';
 import ClientCasesPage from './pages/client/ClientCasesPage';
+import PostCasePage from './pages/client/PostCasePage';
+import FirmCasesPage from './pages/shared/FirmCasesPage';
+import FirmSettingsPage from './pages/lawyer/FirmSettingsPage';
+import MessagesPage from './pages/shared/MessagesPage';
 
 const GOOGLE_CLIENT_ID = "396025464451-hf47j93c1ce9pf694j80vpj480dt6ih7.apps.googleusercontent.com";
 
@@ -77,6 +81,18 @@ function App() {
                   <ClientCasesPage />
                 </ProtectedRoute>
               } />
+
+              <Route path="client/post-case" element={
+                <ProtectedRoute allowedRoles={['Client']}>
+                  <PostCasePage />
+                </ProtectedRoute>
+              } />
+              
+              <Route path="client/messages" element={
+                <ProtectedRoute allowedRoles={['Client']}>
+                  <MessagesPage />
+                </ProtectedRoute>
+              } />
               
               <Route path="lawyer/dashboard" element={
                 <ProtectedRoute allowedRoles={['Lawyer']}>
@@ -89,9 +105,39 @@ function App() {
                 </ProtectedRoute>
               } />
 
+              <Route path="lawyer/cases" element={
+                <ProtectedRoute allowedRoles={['Lawyer']}>
+                  <FirmCasesPage />
+                </ProtectedRoute>
+              } />
+
+              <Route path="lawyer/settings" element={
+                <ProtectedRoute allowedRoles={['Lawyer']}>
+                  <FirmSettingsPage />
+                </ProtectedRoute>
+              } />
+
+              <Route path="lawyer/messages" element={
+                <ProtectedRoute allowedRoles={['Lawyer']}>
+                  <MessagesPage />
+                </ProtectedRoute>
+              } />
+
               <Route path="junior/dashboard" element={
                 <ProtectedRoute allowedRoles={['Junior']}>
                   <JuniorDashboard />
+                </ProtectedRoute>
+              } />
+
+              <Route path="junior/cases" element={
+                <ProtectedRoute allowedRoles={['Junior']}>
+                  <FirmCasesPage />
+                </ProtectedRoute>
+              } />
+
+              <Route path="junior/messages" element={
+                <ProtectedRoute allowedRoles={['Junior']}>
+                  <MessagesPage />
                 </ProtectedRoute>
               } />
             </Route>

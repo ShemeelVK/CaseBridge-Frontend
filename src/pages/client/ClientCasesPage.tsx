@@ -1,5 +1,5 @@
 import { useState, useEffect, type JSX } from 'react';
-import { Briefcase, Plus, Clock, CheckCircle, AlertCircle, Search } from 'lucide-react';
+import { Briefcase, Plus, Clock, CheckCircle, AlertCircle, Search, MessageSquare } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { toast } from 'react-hot-toast';
 import { caseService } from '../../services/caseService';
@@ -134,13 +134,27 @@ const ClientCasesPage = () => {
                 <p className="text-sm text-law-slate line-clamp-2 pl-3 mb-5">{c.description}</p>
 
                 <div className="flex items-center justify-between pl-3 pt-4 border-t border-gray-100">
-                  <span className="text-sm font-semibold text-law-navy">
-                    Budget: <span className="text-accent-gold">₹{c.budget.toLocaleString()}</span>
-                  </span>
-                  {c.createdAt && (
-                    <span className="text-xs text-gray-400">
-                      {new Date(c.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                  <div className="flex flex-col">
+                    <span className="text-sm font-semibold text-law-navy">
+                      Budget: <span className="text-accent-gold">₹{c.budget.toLocaleString()}</span>
                     </span>
+                    {c.createdAt && (
+                      <span className="text-xs text-gray-400">
+                        {new Date(c.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      </span>
+                    )}
+                  </div>
+
+                  {c.assignedFirmId && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigate(`/client/messages?caseId=${c.id}`);
+                      }}
+                      className="p-2.5 bg-law-navy text-white rounded-xl hover:bg-law-navy/90 transition-all shadow-md flex items-center gap-2 text-xs font-bold"
+                    >
+                      <MessageSquare className="w-4 h-4" /> Start Chat
+                    </button>
                   )}
                 </div>
               </motion.div>

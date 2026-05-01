@@ -31,12 +31,13 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
           { name: 'Active Cases', icon: Briefcase, path: '/lawyer/cases' },
           { name: 'Marketplace', icon: Globe, path: '/marketplace' },
           { name: 'Associates', icon: Users, path: '/lawyer/associates' },
+          { name: 'Firm Settings', icon: Settings, path: '/lawyer/settings' },
           { name: 'Messages', icon: MessageSquare, path: '/lawyer/messages' },
         ];
       case 'Junior':
         return [
           { name: 'My Tasks', icon: LayoutDashboard, path: '/junior/dashboard' },
-          { name: 'Case Files', icon: FileText, path: '/junior/cases' },
+          { name: 'Cases', icon: Briefcase, path: '/junior/cases' },
           { name: 'Marketplace', icon: Globe, path: '/marketplace' },
           { name: 'Schedule', icon: Calendar, path: '/junior/schedule' },
           { name: 'Messages', icon: MessageSquare, path: '/junior/messages' },

@@ -6,6 +6,21 @@ import { firmService } from '../../services/firmService';
 import type { AddJuniorDto } from '../../services/firmService';
 import useAxiosPrivate from '../../hooks/useAxiosPrivate';
 
+const SPECIALIZATIONS = [
+  'Civil Litigation',
+  'Criminal Defence',
+  'Corporate & Business',
+  'Family & Matrimonial',
+  'Property & Real Estate',
+  'Intellectual Property',
+  'Employment & Labour',
+  'Tax & Finance',
+  'Consumer Protection',
+  'Constitutional Law',
+  'Cyber & Technology Law',
+  'Other',
+];
+
 interface AddAssociateModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -22,6 +37,7 @@ const AddAssociateModal: React.FC<AddAssociateModalProps> = ({ isOpen, onClose, 
     temporaryPassword: ''
   });
   const [loading, setLoading] = useState(false);
+  const [otherSpecialization, setOtherSpecialization] = useState('');
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -136,17 +152,37 @@ const AddAssociateModal: React.FC<AddAssociateModalProps> = ({ isOpen, onClose, 
 
                 <div>
                   <label className="block text-sm font-medium text-law-navy mb-1">Specialization</label>
-                  <div className="relative">
-                    <Briefcase className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                  <select
+                    value={SPECIALIZATIONS.slice(0, -1).includes(formData.specialization) ? formData.specialization : (formData.specialization ? 'Other' : '')}
+                    onChange={e => {
+                      if (e.target.value === 'Other') {
+                        setFormData({ ...formData, specialization: '' });
+                      } else {
+                        setOtherSpecialization('');
+                        setFormData({ ...formData, specialization: e.target.value });
+                      }
+                    }}
+                    className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-accent-gold focus:border-transparent transition-all outline-none text-sm text-gray-700"
+                  >
+                    <option value="">Select a specialization...</option>
+                    {SPECIALIZATIONS.map(spec => (
+                      <option key={spec} value={spec}>{spec}</option>
+                    ))}
+                  </select>
+                  {/* Free-text input when Other is selected */}
+                  {!SPECIALIZATIONS.slice(0, -1).includes(formData.specialization) && formData.specialization !== '' || 
+                   (!SPECIALIZATIONS.slice(0, -1).includes(formData.specialization) && otherSpecialization !== '') ? (
                     <input
                       type="text"
-                      name="specialization"
-                      value={formData.specialization}
-                      onChange={handleChange}
-                      className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-accent-gold focus:border-transparent transition-all outline-none"
-                      placeholder="e.g. Corporate Law, Litigation"
+                      placeholder="Describe the specialization..."
+                      value={otherSpecialization}
+                      onChange={e => {
+                        setOtherSpecialization(e.target.value);
+                        setFormData({ ...formData, specialization: e.target.value });
+                      }}
+                      className="mt-2 w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-accent-gold focus:border-transparent transition-all outline-none text-sm"
                     />
-                  </div>
+                  ) : null}
                 </div>
 
                 <div>
