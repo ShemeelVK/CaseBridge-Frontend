@@ -33,7 +33,8 @@ const ChatWindow = ({ caseId, caseTitle, roomType, targetUserId, onClose }: Chat
   
   const getHubUrl = () => {
     // Correctly strip /api or /api/v1 from the end
-    const base = import.meta.env.VITE_CASES_API_URL?.replace(/\/api(\/v\d+)?$/, '') || '';
+    const casesApiUrl = import.meta.env.VITE_CASES_API_URL || 'http://localhost:5035/api';
+    const base = casesApiUrl.replace(/\/api(\/v\d+)?$/, '');
     return `${base.replace(/\/$/, '')}/case-chat-hub`;
   };
   

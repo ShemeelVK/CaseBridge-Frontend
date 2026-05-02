@@ -32,6 +32,11 @@ export const caseService = {
     return response.data;
   },
 
+  getFirmChatCases: async (): Promise<Case[]> => {
+    const response = await casesApi.get<Case[]>('/Chat/firm-cases');
+    return response.data;
+  },
+
   closeCase: async (id: number): Promise<{ message: string }> => {
     const response = await casesApi.put(`/v1/firm/cases/${id}/close-case`);
     return response.data;

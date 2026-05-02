@@ -43,7 +43,8 @@ export const useSignalR = (hubUrl: string, token: string | null) => {
       await connection.start();
       console.log('🚀 SignalR: Connected successfully');
       setIsConnected(true);
-    } catch (err) {
+    } catch (err: any) {
+      if (err.name === 'AbortError' || err.message?.includes('stopped')) return; // Ignore React Strict Mode unmounts
       console.error('🔥 SignalR: Connection failed:', err);
       setIsConnected(false);
       setTimeout(startConnection, 5000);

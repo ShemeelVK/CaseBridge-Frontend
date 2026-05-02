@@ -34,7 +34,8 @@ const MessagesPage = () => {
 
   // Background SignalR connection for the MessagesPage
   const hubUrl = (() => {
-    const base = import.meta.env.VITE_CASES_API_URL?.replace(/\/api(\/v\d+)?$/, '') || '';
+    const casesApiUrl = import.meta.env.VITE_CASES_API_URL || 'http://localhost:5035/api';
+    const base = casesApiUrl.replace(/\/api(\/v\d+)?$/, '');
     return `${base.replace(/\/$/, '')}/case-chat-hub`;
   })();
   const { isConnected: bgConnected, joinRoom: bgJoinRoom, on: bgOn, off: bgOff } = useSignalR(hubUrl, accessToken);
@@ -55,7 +56,7 @@ const MessagesPage = () => {
         if (user?.userType === 'Client') {
           casesData = await caseService.getClientCases();
         } else {
-          casesData = await caseService.getFirmCases();
+          casesData = await caseService.getFirmChatCases();
           // Fetch firm members (senior and colleagues)
           membersData = await firmService.getMyAssociates(axiosPrivate);
           setAssociates(membersData.associates || []);
@@ -148,15 +149,13 @@ const MessagesPage = () => {
   }, [bgOn, bgOff, bgJoinRoom, user?.id]);
 
   const filteredCases = cases.filter(c => {
-    const isClaimed = c.assignedFirmId != null;
-    const hasIncoming = incomingCaseIds.has(c.id);
-    const isSelected = selectedChat?.id === c.id && selectedChat.type === 'external';
     const matchesSearch = c.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          c.clientName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          c.lawyerName?.toLowerCase().includes(searchTerm.toLowerCase());
     
-    // Show if: claimed, specifically selected via 'Start Chat', or has a new incoming message
-    return (isClaimed || isSelected || hasIncoming) && matchesSearch;
+    // The backend already filters out irrelevant cases. 
+    // If the API returns it, we should show it (it's either active or a dropped case with history).
+    return matchesSearch;
   });
 
   const filteredAssociates = associates.filter(a => 
