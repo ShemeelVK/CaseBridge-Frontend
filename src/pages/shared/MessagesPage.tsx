@@ -22,7 +22,7 @@ const MessagesPage = () => {
   const [associates, setAssociates] = useState<Associate[]>([]);
   const [senior, setSenior] = useState<Associate | null>(null);
   const [loading, setLoading] = useState(true);
-  const [selectedChat, setSelectedChat] = useState<{ id: number; title: string; type: 'internal' | 'external'; targetUserId?: number } | null>(null);
+  const [selectedChat, setSelectedChat] = useState<{ id: number; title: string; type: 'internal' | 'external'; targetUserId?: number; isUnassigned?: boolean } | null>(null);
   const [incomingCaseIds, setIncomingCaseIds] = useState<Set<number>>(new Set());
   // lastMessage preview and unread badge per caseId
   const [channelMeta, setChannelMeta] = useState<Record<number, { lastMessage: string; hasUnread: boolean }>>({});
@@ -73,7 +73,7 @@ const MessagesPage = () => {
         if (urlCaseId) {
           const targetCase = casesData.find(c => c.id === parseInt(urlCaseId));
           if (targetCase) {
-            setSelectedChat({ id: targetCase.id, title: targetCase.title, type: 'external' });
+            setSelectedChat({ id: targetCase.id, title: targetCase.title, type: 'external', isUnassigned: targetCase.assignedFirmId == null });
           }
         } else if (urlTargetUserId && membersData) {
           const id = parseInt(urlTargetUserId);
@@ -141,7 +141,7 @@ const MessagesPage = () => {
       setIncomingCaseIds(prev => new Set(prev).add(caseId));
 
       // Auto-open the conversation
-      setSelectedChat({ id: relatedCase.id, title: relatedCase.title, type: 'external' });
+      setSelectedChat({ id: relatedCase.id, title: relatedCase.title, type: 'external', isUnassigned: relatedCase.assignedFirmId == null });
     };
 
     bgOn('ReceiveMessage', handleIncoming);
@@ -235,7 +235,7 @@ const MessagesPage = () => {
                   <button
                     key={c.id}
                     onClick={() => {
-                      setSelectedChat({ id: c.id, title: c.title, type: 'external' });
+                      setSelectedChat({ id: c.id, title: c.title, type: 'external', isUnassigned: c.assignedFirmId == null });
                       // Clear unread when user opens this chat
                       setChannelMeta(prev => prev[c.id] ? { ...prev, [c.id]: { ...prev[c.id], hasUnread: false } } : prev);
                     }}
@@ -348,6 +348,7 @@ const MessagesPage = () => {
                 caseTitle={selectedChat.title}
                 roomType={selectedChat.type}
                 targetUserId={selectedChat.targetUserId}
+                isUnassigned={selectedChat.isUnassigned}
                 onClose={() => setSelectedChat(null)}
               />
             </motion.div>

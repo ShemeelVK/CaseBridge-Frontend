@@ -22,10 +22,11 @@ interface ChatWindowProps {
   caseTitle: string;
   roomType: 'internal' | 'external';
   targetUserId?: number | null;
+  isUnassigned?: boolean;
   onClose?: () => void;
 }
 
-const ChatWindow = ({ caseId, caseTitle, roomType, targetUserId, onClose }: ChatWindowProps) => {
+const ChatWindow = ({ caseId, caseTitle, roomType, targetUserId, isUnassigned, onClose }: ChatWindowProps) => {
   const { user, accessToken } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState('');
@@ -200,12 +201,19 @@ const ChatWindow = ({ caseId, caseTitle, roomType, targetUserId, onClose }: Chat
 
       {/* Input Area: Standard Messaging Look */}
       <div className="p-4 md:p-6 bg-white border-t border-gray-100">
-        <form onSubmit={handleSend} className="flex items-center gap-3 bg-gray-50 p-2 rounded-2xl border border-gray-100 focus-within:ring-2 focus-within:ring-accent-gold/20 focus-within:border-accent-gold/40 transition-all">
+        {isUnassigned && roomType === 'external' && (
+          <div className="mb-3 text-center text-xs font-bold text-amber-600 bg-amber-50 py-2.5 px-4 rounded-xl border border-amber-100 shadow-sm">
+            {user?.userType === 'Client' 
+              ? "Your case is awaiting assignment. Chat will unlock once an advocate claims your file."
+              : "This case is currently unassigned. Chat is in read-only historical mode."}
+          </div>
+        )}
+        <form onSubmit={handleSend} className={`flex items-center gap-3 bg-gray-50 p-2 rounded-2xl border border-gray-100 transition-all ${!isUnassigned ? 'focus-within:ring-2 focus-within:ring-accent-gold/20 focus-within:border-accent-gold/40' : 'opacity-70 cursor-not-allowed'}`}>
           <div className="flex items-center gap-1">
-            <button type="button" className="p-2.5 text-law-slate hover:text-law-navy hover:bg-gray-200 rounded-xl transition-all" title="Attach Document">
+            <button type="button" disabled={isUnassigned} className="p-2.5 text-law-slate hover:text-law-navy hover:bg-gray-200 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed" title="Attach Document">
               <Paperclip className="w-5 h-5" />
             </button>
-            <button type="button" className="p-2.5 text-law-slate hover:text-law-navy hover:bg-gray-200 rounded-xl transition-all" title="Add Emoji">
+            <button type="button" disabled={isUnassigned} className="p-2.5 text-law-slate hover:text-law-navy hover:bg-gray-200 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed" title="Add Emoji">
               <Smile className="w-5 h-5" />
             </button>
           </div>
@@ -214,15 +222,16 @@ const ChatWindow = ({ caseId, caseTitle, roomType, targetUserId, onClose }: Chat
             type="text"
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
-            placeholder="Type a professional message..."
-            className="flex-1 bg-transparent border-none focus:ring-0 text-sm text-law-navy placeholder:text-gray-400 py-3"
+            disabled={isUnassigned}
+            placeholder={isUnassigned ? "Chat is disabled..." : "Type a professional message..."}
+            className="flex-1 bg-transparent border-none focus:ring-0 text-sm text-law-navy placeholder:text-gray-400 py-3 disabled:cursor-not-allowed"
           />
 
           <button
             type="submit"
-            disabled={!inputText.trim() || !isConnected}
+            disabled={isUnassigned || !inputText.trim() || !isConnected}
             className={`p-3 rounded-xl transition-all shadow-md ${
-              inputText.trim() && isConnected 
+              !isUnassigned && inputText.trim() && isConnected 
                 ? 'bg-law-navy text-white hover:scale-105 active:scale-95' 
                 : 'bg-gray-200 text-gray-400 cursor-not-allowed'
             }`}
