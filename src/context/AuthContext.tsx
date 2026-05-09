@@ -1,5 +1,6 @@
 import { createContext, useState, useEffect, type ReactNode } from 'react';
 import type { AuthResponse, User } from '../types/auth.types';
+import { clearUserChatStorage } from '../utils/chatStorage';
 
 interface AuthContextType {
   user: User | null;
@@ -49,6 +50,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const logout = () => {
+    // Clear all chat cache for this user before wiping the session
+    if (user?.id) clearUserChatStorage(user.id);
     setUser(null);
     setAccessToken(null);
     localStorage.removeItem('accessToken');

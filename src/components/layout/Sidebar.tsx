@@ -1,6 +1,7 @@
 import { useContext } from 'react';
 import { NavLink } from 'react-router-dom';
 import { AuthContext } from '../../context/AuthContext';
+import { useNotifications } from '../../context/NotificationContext';
 import { 
   LayoutDashboard, 
   Briefcase, 
@@ -22,6 +23,7 @@ interface SidebarProps {
 
 const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
   const { user } = useContext(AuthContext) || {};
+  const { totalUnread } = useNotifications();
 
   const getNavLinks = () => {
     switch (user?.userType) {
@@ -92,6 +94,7 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
           
           {navLinks.map((link) => {
             const Icon = link.icon;
+            const isMessages = link.name === 'Messages';
             return (
               <NavLink
                 key={link.name}
@@ -105,7 +108,12 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
                 }
               >
                 <Icon className="w-5 h-5 transition-transform group-hover:scale-110" />
-                <span>{link.name}</span>
+                <span className="flex-1">{link.name}</span>
+                {isMessages && totalUnread > 0 && (
+                  <span className="min-w-[20px] h-5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1">
+                    {totalUnread > 99 ? '99+' : totalUnread}
+                  </span>
+                )}
               </NavLink>
             );
           })}

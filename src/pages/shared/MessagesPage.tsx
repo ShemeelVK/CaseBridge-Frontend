@@ -13,9 +13,11 @@ import { useSignalR } from '../../hooks/useSignalR';
 import ChatWindow from '../../components/chat/ChatWindow';
 import type { Case } from '../../types/case.types';
 import type { Associate } from '../../services/firmService';
+import { useNotifications } from '../../context/NotificationContext';
 
 const MessagesPage = () => {
   const { user, accessToken } = useAuth();
+  const { clearUnread, roomUnread, setActiveRoom } = useNotifications();
   const [searchParams] = useSearchParams();
   const axiosPrivate = useAxiosPrivate();
   const [cases, setCases] = useState<Case[]>([]);
@@ -32,7 +34,7 @@ const MessagesPage = () => {
   const selectedChatRef = useRef(selectedChat);
   const fetchCasesRef = useRef<() => Promise<void>>(() => Promise.resolve());
 
-  // Background SignalR connection for the MessagesPage
+  // Background SignalR connection for sidebar unread preview updates only
   const hubUrl = (() => {
     const casesApiUrl = import.meta.env.VITE_CASES_API_URL || 'http://localhost:5035/api';
     const base = casesApiUrl.replace(/\/api(\/v\d+)?$/, '');
@@ -44,7 +46,11 @@ const MessagesPage = () => {
 
   // Keep refs in sync so the listener closure always has fresh data
   useEffect(() => { casesRef.current = cases; }, [cases]);
-  useEffect(() => { selectedChatRef.current = selectedChat; }, [selectedChat]);
+  useEffect(() => {
+    selectedChatRef.current = selectedChat;
+    // Tell NotificationContext which room is active so it skips counting its messages
+    setActiveRoom(selectedChat?.type === 'external' ? selectedChat.id : null);
+  }, [selectedChat, setActiveRoom]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -122,7 +128,7 @@ const MessagesPage = () => {
         return;
       }
 
-      // Update last message preview + unread badge
+      // Update last message preview only (sound + global badge handled by NotificationContext)
       setChannelMeta(prev => ({
         ...prev,
         [caseId]: {
@@ -139,9 +145,7 @@ const MessagesPage = () => {
 
       // Mark as incoming so it passes the sidebar filter
       setIncomingCaseIds(prev => new Set(prev).add(caseId));
-
-      // Auto-open the conversation
-      setSelectedChat({ id: relatedCase.id, title: relatedCase.title, type: 'external', isUnassigned: relatedCase.assignedFirmId == null });
+      // Badge and sound are handled by NotificationContext — user opens manually
     };
 
     bgOn('ReceiveMessage', handleIncoming);
@@ -236,8 +240,8 @@ const MessagesPage = () => {
                     key={c.id}
                     onClick={() => {
                       setSelectedChat({ id: c.id, title: c.title, type: 'external', isUnassigned: c.assignedFirmId == null });
-                      // Clear unread when user opens this chat
                       setChannelMeta(prev => prev[c.id] ? { ...prev, [c.id]: { ...prev[c.id], hasUnread: false } } : prev);
+                      clearUnread(c.id);
                     }}
                     className={`w-full p-4 rounded-2xl flex items-center gap-4 transition-all group mb-1 ${selectedChat?.id === c.id && selectedChat.type === 'external' ? 'bg-law-navy text-white shadow-xl shadow-law-navy/20' : 'hover:bg-gray-50'}`}
                   >
@@ -249,8 +253,10 @@ const MessagesPage = () => {
                         <h4 className="font-bold truncate text-[15px]">
                           {user?.userType === 'Client' ? (c.lawyerName || 'Private Lawyer') : (c.clientName || 'Private Client')}
                         </h4>
-                        {channelMeta[c.id]?.hasUnread && (
-                          <span className="w-2.5 h-2.5 bg-red-500 rounded-full shrink-0 ml-2" />
+                        {(roomUnread[c.id] ?? 0) > 0 && (
+                          <span className="min-w-[18px] h-[18px] bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1 ml-2">
+                            {roomUnread[c.id]}
+                          </span>
                         )}
                       </div>
                       <p className={`text-[11px] truncate opacity-70 ${selectedChat?.id === c.id ? 'text-white' : 'text-law-slate'}`}>

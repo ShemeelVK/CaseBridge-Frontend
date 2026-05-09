@@ -1,20 +1,26 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   Send, Paperclip, MoreVertical, 
   CheckCheck, Building2, Phone, Video, Smile,
-  ChevronLeft
+  ChevronLeft, RotateCcw, AlertCircle, Clock
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { useSignalR } from '../../hooks/useSignalR';
 import { caseService } from '../../services/caseService';
+import { buildRoomKey, loadFromStorage, saveToStorage, mergeMessages } from '../../utils/chatStorage';
+import type { StoredMessage } from '../../utils/chatStorage';
+
+// 'sending' = optimistic, not yet confirmed  |  'sent' = confirmed by server  |  'failed' = invoke threw
+type MessageStatus = 'sending' | 'sent' | 'failed';
 
 interface Message {
-  id: number;
+  id: number;           // positive = real server ID, negative = temp client ID
   senderId: number;
   senderName: string;
   content: string;
   timestamp: string;
   isMe: boolean;
+  status: MessageStatus;
 }
 
 interface ChatWindowProps {
@@ -31,6 +37,8 @@ const ChatWindow = ({ caseId, caseTitle, roomType, targetUserId, isUnassigned, o
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
+  // Stable room key — recomputed only when room identity changes
+  const roomKey = user?.id ? buildRoomKey(user.id, caseId, roomType, targetUserId) : null;
   
   const getHubUrl = () => {
     // Correctly strip /api or /api/v1 from the end
@@ -58,20 +66,39 @@ const ChatWindow = ({ caseId, caseTitle, roomType, targetUserId, isUnassigned, o
     scrollToBottom();
   }, [messages]);
 
+  // 1. INSTANT LOAD: show cached messages immediately, before backend responds
+  useEffect(() => {
+    if (!roomKey) return;
+    const cached = loadFromStorage(roomKey);
+    if (cached.length > 0) {
+      setMessages(cached.map(m => ({ ...m, status: 'sent' as MessageStatus })));
+    }
+  }, [roomKey]);
+
   useEffect(() => {
     const loadHistory = async () => {
       try {
         const history = await caseService.getChatHistory(caseId, roomType, targetUserId || undefined);
-        setMessages(history.map((msg: any) => ({
+        const backendMsgs: StoredMessage[] = history.map((msg: any) => ({
           id: msg.id,
           senderId: msg.senderId,
           senderName: msg.senderName,
-          content: msg.messageText,   // backend DTO field: MessageText
-          timestamp: msg.sendAt,       // backend DTO field: SendAt
-          isMe: msg.senderId === user?.id
-        })));
+          content: msg.messageText,
+          timestamp: msg.sendAt,
+          isMe: msg.senderId === user?.id,
+        }));
+
+        // 2. MERGE: backend is source of truth — reconcile with local cache
+        const cached = roomKey ? loadFromStorage(roomKey) : [];
+        const merged = mergeMessages(backendMsgs, cached);
+
+        // 3. PERSIST the merged result back to localStorage
+        if (roomKey) saveToStorage(roomKey, merged);
+
+        setMessages(merged.map(m => ({ ...m, status: 'sent' as MessageStatus })));
       } catch (err) {
         console.error('Failed to load history:', err);
+        // On failure, keep showing whatever was in localStorage
       }
     };
 
@@ -79,38 +106,100 @@ const ChatWindow = ({ caseId, caseTitle, roomType, targetUserId, isUnassigned, o
       joinRoom(caseId, roomType, targetUserId);
       loadHistory();
     }
-  }, [isConnected, caseId, roomType, targetUserId, joinRoom, user?.id]);
+  }, [isConnected, caseId, roomType, targetUserId, joinRoom, user?.id, roomKey]);
 
-  // Separate Listener for Real-time Messages
+  // Real-time receiver — reconciles optimistic messages and persists confirmed ones
   useEffect(() => {
     const handleReceive = (msg: any) => {
-      setMessages(prev => [...prev, {
+      const confirmed: Message = {
         id: msg.id || Date.now(),
         senderId: msg.senderId,
         senderName: msg.senderName,
-        content: msg.text, // Backend confirmed to send 'text' property
+        content: msg.text,
         timestamp: msg.timestamp || new Date().toISOString(),
-        isMe: msg.senderId === user?.id
-      }]);
+        isMe: msg.senderId === user?.id,
+        status: 'sent',
+      };
+
+      // Compute the next message list OUTSIDE the state updater to avoid
+      // side effects inside React's state updater (forbidden in Strict Mode)
+      setMessages(prev => {
+        let next: Message[];
+
+        if (confirmed.isMe) {
+          // Replace the matching optimistic (tempId < 0) entry
+          const tempIdx = prev.findIndex(
+            m => m.id < 0 && m.content === confirmed.content && m.status === 'sending'
+          );
+          if (tempIdx !== -1) {
+            next = [...prev];
+            next[tempIdx] = confirmed;
+          } else {
+            if (prev.some(m => m.id === confirmed.id)) return prev;
+            next = [...prev, confirmed];
+          }
+        } else {
+          if (prev.some(m => m.id === confirmed.id)) return prev;
+          next = [...prev, confirmed];
+        }
+
+        // Persist OUTSIDE via a microtask — never call localStorage inside a state updater
+        if (roomKey) {
+          const toStore: StoredMessage[] = next
+            .filter(m => m.id > 0)
+            .map(({ id, senderId, senderName, content, timestamp, isMe }) =>
+              ({ id, senderId, senderName, content, timestamp, isMe })
+            );
+          // queueMicrotask keeps this outside the React render cycle
+          queueMicrotask(() => saveToStorage(roomKey, toStore));
+        }
+
+        return next;
+      });
     };
 
     on('ReceiveMessage', handleReceive);
+    return () => { off('ReceiveMessage'); };
+  }, [on, off, user?.id, roomKey]);
 
-    return () => {
-      off('ReceiveMessage');
-    };
-  }, [on, off, user?.id]);
+  // Retry a failed optimistic message
+  const handleRetry = useCallback(async (tempId: number) => {
+    const msg = messages.find(m => m.id === tempId);
+    if (!msg) return;
+    setMessages(prev => prev.map(m => m.id === tempId ? { ...m, status: 'sending' } : m));
+    try {
+      await sendMessage(caseId, roomType, msg.content, targetUserId);
+    } catch {
+      setMessages(prev => prev.map(m => m.id === tempId ? { ...m, status: 'failed' } : m));
+    }
+  }, [messages, caseId, roomType, targetUserId, sendMessage]);
 
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!inputText.trim() || !isConnected) return;
+    const text = inputText.trim();
+    if (!text || !isConnected) return;
+
+    // --- OPTIMISTIC: render instantly with a negative temp ID ---
+    const tempId = -Date.now();
+    const optimistic: Message = {
+      id: tempId,
+      senderId: user?.id ?? 0,
+      senderName: user?.fullName ?? 'Me',
+      content: text,
+      timestamp: new Date().toISOString(),
+      isMe: true,
+      status: 'sending',
+    };
+    setMessages(prev => [...prev, optimistic]);
+    setInputText('');
 
     try {
-      console.log("📤 Sending Message:", { caseId, roomType, inputText, targetUserId });
-      await sendMessage(caseId, roomType, inputText, targetUserId);
-      setInputText('');
-    } catch (err) {
-      console.error('Failed to send message:', err);
+      await sendMessage(caseId, roomType, text, targetUserId);
+      // SignalR echo -> handleReceive replaces the optimistic entry with confirmed data
+    } catch {
+      setMessages(prev =>
+        prev.map(m => m.id === tempId ? { ...m, status: 'failed' } : m)
+      );
     }
   };
 
@@ -183,18 +272,37 @@ const ChatWindow = ({ caseId, caseTitle, roomType, targetUserId, isUnassigned, o
               </span>
             )}
             <div className={`group flex items-end gap-2 max-w-[85%] md:max-w-[70%] ${msg.isMe ? 'flex-row-reverse' : 'flex-row'}`}>
-              <div className={`px-5 py-3.5 rounded-2xl shadow-sm text-sm leading-relaxed ${
+              <div className={`px-5 py-3.5 rounded-2xl shadow-sm text-sm leading-relaxed transition-opacity ${
                 msg.isMe 
                   ? 'bg-law-navy text-white rounded-tr-none' 
                   : 'bg-white text-law-navy border border-gray-100 rounded-tl-none'
-              }`}>
+              } ${msg.status === 'sending' ? 'opacity-60' : 'opacity-100'}`}>
                 {msg.content}
-                <div className={`flex items-center justify-end gap-1.5 mt-1 opacity-50 text-[9px] ${msg.isMe ? 'text-white' : 'text-law-slate'}`}>
+                <div className={`flex items-center justify-end gap-1.5 mt-1 text-[9px] ${
+                  msg.isMe ? 'text-white/60' : 'text-law-slate/60'
+                }`}>
                   {formatTimestamp(msg.timestamp)}
-                  {msg.isMe && <CheckCheck className="w-3 h-3" />}
+                  {msg.isMe && (
+                    msg.status === 'sending' ? (
+                      <Clock className="w-3 h-3 animate-pulse" />
+                    ) : msg.status === 'failed' ? (
+                      <AlertCircle className="w-3 h-3 text-red-400" />
+                    ) : (
+                      <CheckCheck className="w-3 h-3" />
+                    )
+                  )}
                 </div>
               </div>
             </div>
+            {/* Retry button for failed messages */}
+            {msg.isMe && msg.status === 'failed' && (
+              <button
+                onClick={() => handleRetry(msg.id)}
+                className="flex items-center gap-1 text-[10px] text-red-500 hover:text-red-700 mt-1 mr-1 font-semibold transition-colors"
+              >
+                <RotateCcw className="w-3 h-3" /> Failed — tap to retry
+              </button>
+            )}
           </div>
         ))}
       </div>
