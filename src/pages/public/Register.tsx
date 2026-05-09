@@ -40,6 +40,9 @@ export default function Register() {
     length: false,
     specialChar: false,
     uppercase: false,
+    lowercase: false,
+    number: false,
+    noSpaces: false,
     enrollmentValid: true, 
   });
   const [showValidations, setShowValidations] = useState(false);
@@ -51,6 +54,9 @@ export default function Register() {
       length: isGoogleAuth || formData.password.length >= 8,
       specialChar: isGoogleAuth || /[!@#$%^&*(),.?":{}|<>]/.test(formData.password),
       uppercase: isGoogleAuth || /[A-Z]/.test(formData.password),
+      lowercase: isGoogleAuth || /[a-z]/.test(formData.password),
+      number: isGoogleAuth || /\d/.test(formData.password),
+      noSpaces: isGoogleAuth || (formData.password.length > 0 && !/\s/.test(formData.password)),
       enrollmentValid: role === 'Lawyer' ? enrollmentRegex.test(formData.enrollmentNumber) : true,
     });
   }, [formData.password, formData.enrollmentNumber, role, isGoogleAuth]);
@@ -304,7 +310,7 @@ export default function Register() {
                               exit={{ height: 0, opacity: 0 }}
                               className="overflow-hidden"
                             >
-                              <div className="mt-3 p-3 bg-white/50 border border-gray-100 rounded-lg grid grid-cols-1 md:grid-cols-3 gap-2">
+                              <div className="mt-3 p-3 bg-white/50 border border-gray-100 rounded-lg grid grid-cols-2 md:grid-cols-3 gap-2">
                                 <div className="flex items-center space-x-2 text-xs">
                                   {validations.length ? <ShieldCheck className="w-3 h-3 text-green-500" /> : <X className="w-3 h-3 text-gray-300" />}
                                   <span className={validations.length ? 'text-green-600' : 'text-law-slate'}>8+ Characters</span>
@@ -316,6 +322,18 @@ export default function Register() {
                                 <div className="flex items-center space-x-2 text-xs">
                                   {validations.uppercase ? <ShieldCheck className="w-3 h-3 text-green-500" /> : <X className="w-3 h-3 text-gray-300" />}
                                   <span className={validations.uppercase ? 'text-green-600' : 'text-law-slate'}>Capital Letter</span>
+                                </div>
+                                <div className="flex items-center space-x-2 text-xs">
+                                  {validations.lowercase ? <ShieldCheck className="w-3 h-3 text-green-500" /> : <X className="w-3 h-3 text-gray-300" />}
+                                  <span className={validations.lowercase ? 'text-green-600' : 'text-law-slate'}>Lowercase Letter</span>
+                                </div>
+                                <div className="flex items-center space-x-2 text-xs">
+                                  {validations.number ? <ShieldCheck className="w-3 h-3 text-green-500" /> : <X className="w-3 h-3 text-gray-300" />}
+                                  <span className={validations.number ? 'text-green-600' : 'text-law-slate'}>Number</span>
+                                </div>
+                                <div className="flex items-center space-x-2 text-xs">
+                                  {validations.noSpaces ? <ShieldCheck className="w-3 h-3 text-green-500" /> : <X className="w-3 h-3 text-gray-300" />}
+                                  <span className={validations.noSpaces ? 'text-green-600' : 'text-law-slate'}>No Spaces</span>
                                 </div>
                               </div>
                             </motion.div>
@@ -396,7 +414,7 @@ export default function Register() {
 
                     <button 
                       type="submit" 
-                      disabled={loading || !role || !validations.length || !validations.specialChar || !validations.uppercase || !validations.enrollmentValid} 
+                      disabled={loading || !role || !validations.length || !validations.specialChar || !validations.uppercase || !validations.lowercase || !validations.number || !validations.noSpaces || !validations.enrollmentValid} 
                       className="w-full btn-primary py-3 mt-6 flex items-center justify-center"
                     >
                       {loading ? 'Processing...' : (

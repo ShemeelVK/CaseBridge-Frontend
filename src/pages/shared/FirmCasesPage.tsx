@@ -18,9 +18,14 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.
     color: 'bg-blue-50 text-blue-700 border-blue-200',
     icon: <Clock className="w-3.5 h-3.5" />,
   },
-  InProgress: {
-    label: 'In Progress',
+  InReview: {
+    label: 'In Review',
     color: 'bg-amber-50 text-amber-700 border-amber-200',
+    icon: <Briefcase className="w-3.5 h-3.5" />,
+  },
+  Reopened: {
+    label: 'Reopened',
+    color: 'bg-purple-50 text-purple-700 border-purple-200',
     icon: <Briefcase className="w-3.5 h-3.5" />,
   },
   Closed: {
@@ -100,7 +105,8 @@ const FirmCasesPage = () => {
   const stats = {
     total: cases.length,
     open: cases.filter(c => c.status === 'Open').length,
-    inProgress: cases.filter(c => c.status === 'InProgress').length,
+    inReview: cases.filter(c => c.status === 'InReview').length,
+    reopened: cases.filter(c => c.status === 'Reopened').length,
     closed: cases.filter(c => c.status === 'Closed').length,
     totalBudget: cases.reduce((sum, c) => sum + (c.budget ?? 0), 0),
   };
@@ -122,7 +128,8 @@ const FirmCasesPage = () => {
       name: a.FullName,
       total: assignedCases.length,
       open: assignedCases.filter(c => c.status === 'Open').length,
-      inProgress: assignedCases.filter(c => c.status === 'InProgress').length,
+      inReview: assignedCases.filter(c => c.status === 'InReview').length,
+      reopened: assignedCases.filter(c => c.status === 'Reopened').length,
       closed: assignedCases.filter(c => c.status === 'Closed').length
     };
   }).filter(j => j.total > 0);

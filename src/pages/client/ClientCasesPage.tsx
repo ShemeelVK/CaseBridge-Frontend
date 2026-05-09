@@ -8,10 +8,12 @@ import { useNavigate } from 'react-router-dom';
 
 const statusConfig: Record<string, { label: string; color: string; icon: JSX.Element }> = {
   '1': { label: 'Open',       color: 'bg-emerald-100 text-emerald-700', icon: <CheckCircle className="w-3.5 h-3.5" /> },
-  '2': { label: 'In Progress',color: 'bg-blue-100 text-blue-700',       icon: <Clock className="w-3.5 h-3.5" /> },
+  '2': { label: 'In Review',  color: 'bg-amber-100 text-amber-700',     icon: <Clock className="w-3.5 h-3.5" /> },
   '3': { label: 'Closed',     color: 'bg-gray-100 text-gray-600',       icon: <AlertCircle className="w-3.5 h-3.5" /> },
+  '4': { label: 'Reopened',   color: 'bg-purple-100 text-purple-700',   icon: <Clock className="w-3.5 h-3.5" /> },
   'Open':        { label: 'Open',        color: 'bg-emerald-100 text-emerald-700', icon: <CheckCircle className="w-3.5 h-3.5" /> },
-  'InProgress':  { label: 'In Progress', color: 'bg-blue-100 text-blue-700',       icon: <Clock className="w-3.5 h-3.5" /> },
+  'InReview':    { label: 'In Review',   color: 'bg-amber-100 text-amber-700',     icon: <Clock className="w-3.5 h-3.5" /> },
+  'Reopened':    { label: 'Reopened',    color: 'bg-purple-100 text-purple-700',   icon: <Clock className="w-3.5 h-3.5" /> },
   'Closed':      { label: 'Closed',      color: 'bg-gray-100 text-gray-600',       icon: <AlertCircle className="w-3.5 h-3.5" /> },
 };
 

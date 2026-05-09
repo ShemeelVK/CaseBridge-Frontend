@@ -268,20 +268,7 @@ const MessagesPage = () => {
                 exit={{ opacity: 0, x: -10 }}
                 className="space-y-4"
               >
-                {/* Section: Firm HQ */}
-                <div className="space-y-1">
-                  <p className="px-4 text-[10px] font-bold text-law-slate uppercase tracking-widest mb-2 opacity-50">Common Areas</p>
-                  <button
-                    onClick={() => setSelectedChat({ id: 0, title: 'Firm General Room', type: 'internal' })}
-                    className={`w-full p-4 rounded-2xl flex items-center gap-4 transition-all ${selectedChat?.id === 0 && !selectedChat.targetUserId ? 'bg-law-navy text-white shadow-xl shadow-law-navy/20' : 'bg-law-navy/5 text-law-navy hover:bg-law-navy/10'}`}
-                  >
-                    <div className="w-12 h-12 rounded-2xl bg-law-navy text-white flex items-center justify-center shrink-0 shadow-sm"><Building2 className="w-6 h-6" /></div>
-                    <div className="flex-1 text-left min-w-0">
-                      <h4 className="font-bold text-[15px] truncate">Firm General Room</h4>
-                      <p className={`text-[11px] font-medium opacity-70 ${selectedChat?.id === 0 && !selectedChat.targetUserId ? 'text-white' : 'text-law-slate'}`}>Office-wide Discussion</p>
-                    </div>
-                  </button>
-                </div>
+                {/* Section: Firm HQ Removed */}
 
                 {/* Section: Direct Messages */}
                 <div className="space-y-1">

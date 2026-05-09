@@ -71,6 +71,7 @@ const CaseDetailsPage = () => {
     if (status === 1 || status === 'Open') return 'Open';
     if (status === 2 || status === 'InReview') return 'In Review';
     if (status === 3 || status === 'Closed') return 'Closed';
+    if (status === 4 || status === 'Reopened') return 'Reopened';
     return String(status || 'Unknown');
   };
 
