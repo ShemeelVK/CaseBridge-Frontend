@@ -12,9 +12,13 @@ interface NotificationState {
   totalUnread: number;
   roomUnread: Record<number, number>;
   clearUnread: (caseId: number) => void;
-  setActiveRoom: (caseId: number | null) => void;  // Tell context which chat is open
+  setActiveRoom: (caseId: number | null) => void;
   cases: Case[];
   setCasesExternal: (cases: Case[]) => void;
+  // Expose the global connection so MessagesPage reuses it
+  onMessage: (handler: (msg: any) => void) => void;
+  offMessage: (handler: (msg: any) => void) => void;
+  joinRoom: (caseId: number, type: string, targetUserId: number | null) => void;
 }
 
 const NotificationContext = createContext<NotificationState | undefined>(undefined);
@@ -95,7 +99,10 @@ export const NotificationProvider = ({ children }: { children: ReactNode }) => {
     joinedRoomsRef.current = new Set();
 
     connection.on('ReceiveMessage', (msg: any) => {
-      if (msg.senderId === user.id) return; // ignore own messages
+      // Fan out to MessagesPage sidebar listener first (so it gets every message)
+      messageHandlersRef.current.forEach(h => h(msg));
+
+      if (msg.senderId === user.id) return; // ignore own messages for badge/sound
       const caseId = msg.caseId as number;
       // Skip counting if this is the conversation the user is actively reading
       if (activeRoomRef.current === caseId) return;
@@ -135,7 +142,6 @@ export const NotificationProvider = ({ children }: { children: ReactNode }) => {
 
   const setActiveRoom = useCallback((caseId: number | null) => {
     activeRoomRef.current = caseId;
-    // Also immediately clear unread for this room when it becomes active
     if (caseId !== null) {
       setRoomUnread(prev => {
         if (!prev[caseId]) return prev;
@@ -150,10 +156,32 @@ export const NotificationProvider = ({ children }: { children: ReactNode }) => {
     setCases(newCases);
   }, []);
 
+  // Allow MessagesPage to add/remove listeners on the SAME connection
+  const messageHandlersRef = useRef<Set<(msg: any) => void>>(new Set());
+
+  const onMessage = useCallback((handler: (msg: any) => void) => {
+    messageHandlersRef.current.add(handler);
+  }, []);
+
+  const offMessage = useCallback((handler: (msg: any) => void) => {
+    messageHandlersRef.current.delete(handler);
+  }, []);
+
+  const joinRoom = useCallback((caseId: number, type: string, targetUserId: number | null) => {
+    const conn = connectionRef.current;
+    if (!conn || conn.state !== signalR.HubConnectionState.Connected) return;
+    if (joinedRoomsRef.current.has(caseId)) return;
+    conn.invoke('JoinCaseRoom', caseId, type, targetUserId).catch(() => {});
+    joinedRoomsRef.current.add(caseId);
+  }, []);
+
   const totalUnread = Object.values(roomUnread).reduce((sum, n) => sum + n, 0);
 
   return (
-    <NotificationContext.Provider value={{ totalUnread, roomUnread, clearUnread, setActiveRoom, cases, setCasesExternal }}>
+    <NotificationContext.Provider value={{
+      totalUnread, roomUnread, clearUnread, setActiveRoom,
+      cases, setCasesExternal, onMessage, offMessage, joinRoom
+    }}>
       {children}
     </NotificationContext.Provider>
   );

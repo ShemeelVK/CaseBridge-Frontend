@@ -9,15 +9,14 @@ import { useAuth } from '../../hooks/useAuth';
 import { caseService } from '../../services/caseService';
 import { firmService, type FirmMembers } from '../../services/firmService';
 import useAxiosPrivate from '../../hooks/useAxiosPrivate';
-import { useSignalR } from '../../hooks/useSignalR';
 import ChatWindow from '../../components/chat/ChatWindow';
 import type { Case } from '../../types/case.types';
 import type { Associate } from '../../services/firmService';
 import { useNotifications } from '../../context/NotificationContext';
 
 const MessagesPage = () => {
-  const { user, accessToken } = useAuth();
-  const { clearUnread, roomUnread, setActiveRoom } = useNotifications();
+  const { user } = useAuth();
+  const { clearUnread, roomUnread, setActiveRoom, onMessage, offMessage, joinRoom } = useNotifications();
   const [searchParams] = useSearchParams();
   const axiosPrivate = useAxiosPrivate();
   const [cases, setCases] = useState<Case[]>([]);
@@ -35,13 +34,6 @@ const MessagesPage = () => {
   const fetchCasesRef = useRef<() => Promise<void>>(() => Promise.resolve());
 
   // Background SignalR connection for sidebar unread preview updates only
-  const hubUrl = (() => {
-    const casesApiUrl = import.meta.env.VITE_CASES_API_URL || 'http://localhost:5035/api';
-    const base = casesApiUrl.replace(/\/api(\/v\d+)?$/, '');
-    return `${base.replace(/\/$/, '')}/case-chat-hub`;
-  })();
-  const { isConnected: bgConnected, joinRoom: bgJoinRoom, on: bgOn, off: bgOff } = useSignalR(hubUrl, accessToken);
-
   const isLawyerUser = user?.userType === 'Lawyer' || user?.userType === 'Junior';
 
   // Keep refs in sync so the listener closure always has fresh data
@@ -100,15 +92,13 @@ const MessagesPage = () => {
     fetchCasesRef.current = fetchData;
   }, [user, axiosPrivate, searchParams]);
 
-  // Background: join all case rooms so real-time messages arrive
+  // Join all case rooms via the shared global connection
   useEffect(() => {
-    if (!bgConnected || cases.length === 0) return;
-    cases.forEach(c => {
-      bgJoinRoom(c.id, 'external', null);
-    });
-  }, [bgConnected, cases, bgJoinRoom]);
+    if (cases.length === 0) return;
+    cases.forEach(c => joinRoom(c.id, 'external', null));
+  }, [cases, joinRoom]);
 
-  // Background: listen for incoming messages — update sidebar + auto-surface conversation
+  // Listen for incoming messages via the shared global connection
   useEffect(() => {
     const handleIncoming = (msg: any) => {
       const caseId = msg.caseId as number;
@@ -121,14 +111,14 @@ const MessagesPage = () => {
       const relatedCase = currentCases.find(c => c.id === caseId);
 
       if (!relatedCase) {
-        // Brand-new channel: re-fetch cases so the sidebar shows it, then join its room
+        // Brand-new channel: re-fetch cases so the sidebar shows it
         fetchCasesRef.current().then(() => {
-          bgJoinRoom(caseId, 'external', null);
+          joinRoom(caseId, 'external', null);
         });
         return;
       }
 
-      // Update last message preview only (sound + global badge handled by NotificationContext)
+      // Update last message preview
       setChannelMeta(prev => ({
         ...prev,
         [caseId]: {
@@ -143,14 +133,12 @@ const MessagesPage = () => {
         return [relatedCase, ...others];
       });
 
-      // Mark as incoming so it passes the sidebar filter
       setIncomingCaseIds(prev => new Set(prev).add(caseId));
-      // Badge and sound are handled by NotificationContext — user opens manually
     };
 
-    bgOn('ReceiveMessage', handleIncoming);
-    return () => bgOff('ReceiveMessage');
-  }, [bgOn, bgOff, bgJoinRoom, user?.id]);
+    onMessage(handleIncoming);
+    return () => offMessage(handleIncoming);
+  }, [onMessage, offMessage, joinRoom, user?.id]);
 
   const filteredCases = cases.filter(c => {
     const matchesSearch = c.title.toLowerCase().includes(searchTerm.toLowerCase()) ||

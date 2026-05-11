@@ -20,6 +20,7 @@ import PostCasePage from './pages/client/PostCasePage';
 import FirmCasesPage from './pages/shared/FirmCasesPage';
 import FirmSettingsPage from './pages/lawyer/FirmSettingsPage';
 import MessagesPage from './pages/shared/MessagesPage';
+import AuthCaseDetailPage from './pages/shared/AuthCaseDetailPage';
 
 const GOOGLE_CLIENT_ID = "396025464451-hf47j93c1ce9pf694j80vpj480dt6ih7.apps.googleusercontent.com";
 
@@ -87,6 +88,12 @@ function App() {
                   <PostCasePage />
                 </ProtectedRoute>
               } />
+
+              <Route path="client/cases/:id" element={
+                <ProtectedRoute allowedRoles={['Client']}>
+                  <AuthCaseDetailPage />
+                </ProtectedRoute>
+              } />
               
               <Route path="client/messages" element={
                 <ProtectedRoute allowedRoles={['Client']}>
@@ -111,6 +118,12 @@ function App() {
                 </ProtectedRoute>
               } />
 
+              <Route path="lawyer/cases/:id" element={
+                <ProtectedRoute allowedRoles={['Lawyer']}>
+                  <AuthCaseDetailPage />
+                </ProtectedRoute>
+              } />
+
               <Route path="lawyer/settings" element={
                 <ProtectedRoute allowedRoles={['Lawyer']}>
                   <FirmSettingsPage />
@@ -132,6 +145,12 @@ function App() {
               <Route path="junior/cases" element={
                 <ProtectedRoute allowedRoles={['Junior']}>
                   <FirmCasesPage />
+                </ProtectedRoute>
+              } />
+
+              <Route path="junior/cases/:id" element={
+                <ProtectedRoute allowedRoles={['Junior']}>
+                  <AuthCaseDetailPage />
                 </ProtectedRoute>
               } />
 

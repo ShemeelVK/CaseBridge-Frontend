@@ -115,7 +115,7 @@ const ClientCasesPage = () => {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.07 }}
                 className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm hover:shadow-md transition-all group cursor-pointer relative overflow-hidden"
-                onClick={() => navigate(`/marketplace/case/${c.id}`)}
+                onClick={() => navigate(`/client/cases/${c.id}`)}
               >
                 {/* Accent bar */}
                 <div className="absolute top-0 left-0 w-1 h-full bg-accent-gold rounded-l-2xl" />

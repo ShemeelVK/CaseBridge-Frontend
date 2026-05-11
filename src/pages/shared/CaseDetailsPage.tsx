@@ -3,9 +3,10 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { AuthContext } from '../../context/AuthContext';
 import { caseService } from '../../services/caseService';
 import type { Case } from '../../types/case.types';
-import { ArrowLeft, Briefcase, DollarSign, Calendar, Clock, CheckCircle, User, ShieldCheck, FileText } from 'lucide-react';
+import { ArrowLeft, Briefcase, DollarSign, Calendar, Clock, CheckCircle, User, ShieldCheck, FileText, Paperclip } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { motion } from 'framer-motion';
+import CaseDocumentViewer from '../../components/shared/CaseDocumentViewer';
 
 const CaseDetailsPage = () => {
   const { id } = useParams<{ id: string }>();
@@ -149,6 +150,16 @@ const CaseDetailsPage = () => {
               {caseData.description}
             </div>
           </div>
+
+          {/* Attachments — only renders if caseData.documents has entries */}
+          {caseData.documents && caseData.documents.length > 0 && (
+            <div className="bg-white rounded-3xl p-8 border border-gray-100 shadow-sm">
+              <h2 className="text-xl font-bold text-law-navy mb-6 flex items-center gap-2">
+                <Paperclip className="w-5 h-5 text-accent-gold" /> Attached Documents
+              </h2>
+              <CaseDocumentViewer documents={caseData.documents} />
+            </div>
+          )}
 
           <div className="bg-white rounded-3xl p-8 border border-gray-100 shadow-sm">
             <h2 className="text-xl font-bold text-law-navy mb-6 flex items-center gap-2">

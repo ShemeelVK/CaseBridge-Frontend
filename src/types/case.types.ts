@@ -1,3 +1,9 @@
+export interface CaseDocument {
+  id: number;
+  fileName: string;
+  fileUrl: string;
+}
+
 export interface Case {
   id: number;
   clientId: number;
@@ -12,4 +18,5 @@ export interface Case {
   lawyerName?: string;
   createdAt?: string;
   lastModifiedByUserId: number;
+  documents?: CaseDocument[]; // Only present on authenticated dashboard endpoints
 }

@@ -22,8 +22,23 @@ export const caseService = {
     return response.data;
   },
 
-  postCase: async (data: { title: string; description: string; category: string; budget: number }): Promise<{ message: string; caseId: number }> => {
+  postCase: async (data: { title: string; description: string; category: string; budget: number; documentIds?: number[] }): Promise<{ message: string; caseId: number }> => {
     const response = await casesApi.post('/v1/client/post-case', data);
+    return response.data;
+  },
+
+  uploadDocuments: async (files: File[], onProgress?: (progressEvent: any) => void): Promise<{ documentId: number, url: string, name: string }[]> => {
+    const formData = new FormData();
+    files.forEach(file => {
+      formData.append('files', file);
+    });
+
+    const response = await casesApi.post('/documents/upload', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      },
+      onUploadProgress: onProgress
+    });
     return response.data;
   },
 
@@ -51,7 +66,18 @@ export const caseService = {
     const url = `/Chat/cases/${caseId}/chat/${roomType}${targetUserId ? `?targetUserId=${targetUserId}` : ''}`;
     const response = await casesApi.get(url);
     return response.data;
-  }
+  },
+
+  // Authenticated detail endpoints — return documents (not available on public marketplace)
+  getClientCaseById: async (caseId: number): Promise<import('../types/case.types').Case> => {
+    const response = await casesApi.get(`/v1/client/cases/${caseId}`);
+    return response.data;
+  },
+
+  getFirmCaseById: async (caseId: number): Promise<import('../types/case.types').Case> => {
+    const response = await casesApi.get(`/v1/firm/cases/${caseId}`);
+    return response.data;
+  },
 };
 
 export default caseService;

@@ -1,8 +1,11 @@
-import { useState } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'react-hot-toast';
-import { Scale, FileText, Tag, IndianRupee, ChevronRight, ArrowLeft, CheckCircle } from 'lucide-react';
+import { 
+  Scale, FileText, Tag, IndianRupee, ChevronRight, 
+  ArrowLeft, CheckCircle, UploadCloud, X, File as FileIcon, AlertCircle, Loader2 
+} from 'lucide-react';
 import { caseService } from '../../services/caseService';
 
 const CATEGORIES = [
@@ -18,11 +21,32 @@ const CATEGORIES = [
   'Other',
 ];
 
+const ALLOWED_EXTENSIONS = ['.pdf', '.doc', '.docx', '.txt', '.jpg', '.jpeg', '.png'];
+const ALLOWED_MIME_TYPES = [
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'text/plain',
+  'image/jpeg',
+  'image/png'
+];
+
 type FormData = {
   title: string;
   description: string;
   category: string;
   budget: string;
+};
+
+type UploadStatus = 'queued' | 'uploading' | 'success' | 'error' | 'cancelled';
+
+type UploadedFile = {
+  localId: string;
+  file: File;
+  documentId?: number;
+  status: UploadStatus;
+  progress: number;
+  error?: string;
 };
 
 const STEPS = ['Case Details', 'Category & Budget', 'Review'];
@@ -38,6 +62,10 @@ const PostCasePage = () => {
     budget: '',
   });
 
+  const [uploads, setUploads] = useState<UploadedFile[]>([]);
+  const [isDragging, setIsDragging] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const update = (field: keyof FormData, value: string) =>
     setForm(prev => ({ ...prev, [field]: value }));
 
@@ -47,15 +75,134 @@ const PostCasePage = () => {
     return true;
   };
 
+  const validateFile = (file: File): string | null => {
+    if (file.size === 0) return 'File is empty';
+    
+    // Check extension fallback (since mime types can be unreliable, especially for docx on windows)
+    const ext = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
+    const isExtensionValid = ALLOWED_EXTENSIONS.includes(ext);
+    const isMimeValid = ALLOWED_MIME_TYPES.includes(file.type) || file.type === ''; // Some browsers return empty mime type
+    
+    if (!isExtensionValid && !isMimeValid) {
+      return `Unsupported file type: ${ext || 'unknown'}`;
+    }
+
+    if (uploads.some(u => u.file.name === file.name && u.file.size === file.size)) {
+      return 'File already added';
+    }
+
+    return null; // Valid
+  };
+
+  const startUpload = async (localId: string, file: File) => {
+    try {
+      setUploads(prev => prev.map(u => u.localId === localId ? { ...u, status: 'uploading', progress: 0 } : u));
+      
+      const result = await caseService.uploadDocuments([file], (progressEvent) => {
+        const progress = Math.round((progressEvent.loaded * 100) / (progressEvent.total || file.size));
+        setUploads(prev => prev.map(u => u.localId === localId ? { ...u, progress } : u));
+      });
+
+      if (result && result.length > 0) {
+        setUploads(prev => prev.map(u => u.localId === localId ? { ...u, status: 'success', progress: 100, documentId: result[0].documentId } : u));
+      } else {
+        throw new Error('No document ID returned');
+      }
+    } catch (err: any) {
+      setUploads(prev => prev.map(u => u.localId === localId ? { 
+        ...u, 
+        status: 'error', 
+        error: err.response?.data?.message || err.message || 'Upload failed' 
+      } : u));
+    }
+  };
+
+  const handleFiles = useCallback((newFiles: File[]) => {
+    const newUploads: UploadedFile[] = [];
+
+    newFiles.forEach(file => {
+      const error = validateFile(file);
+      const localId = crypto.randomUUID();
+      
+      const uploadItem: UploadedFile = {
+        localId,
+        file,
+        status: error ? 'error' : 'queued',
+        progress: 0,
+        error: error || undefined
+      };
+      
+      newUploads.push(uploadItem);
+    });
+
+    if (newUploads.length > 0) {
+      setUploads(prev => [...prev, ...newUploads]);
+      
+      // Start uploads for valid files
+      newUploads.forEach(u => {
+        if (u.status === 'queued') {
+          startUpload(u.localId, u.file);
+        }
+      });
+    }
+  }, [uploads]);
+
+  const onDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const onDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+
+  const onDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      handleFiles(Array.from(e.dataTransfer.files));
+    }
+  };
+
+  const removeFile = (localId: string) => {
+    setUploads(prev => prev.filter(u => u.localId !== localId));
+  };
+
+  const retryUpload = (localId: string) => {
+    const fileToRetry = uploads.find(u => u.localId === localId);
+    if (fileToRetry) {
+      startUpload(localId, fileToRetry.file);
+    }
+  };
+
   const handleSubmit = async () => {
+    // Check if any uploads are still in progress
+    if (uploads.some(u => u.status === 'uploading' || u.status === 'queued')) {
+      toast.error('Please wait for all documents to finish uploading.');
+      return;
+    }
+
+    // Check if any uploads failed
+    if (uploads.some(u => u.status === 'error')) {
+      toast.error('Some documents failed to upload. Please remove them or retry.');
+      return;
+    }
+
     try {
       setLoading(true);
+      const documentIds = uploads
+        .filter(u => u.status === 'success' && u.documentId !== undefined)
+        .map(u => u.documentId!);
+
       await caseService.postCase({
         title: form.title,
         description: form.description,
         category: form.category,
         budget: Number(form.budget),
+        documentIds: documentIds.length > 0 ? documentIds : undefined,
       });
+      
       toast.success('Your case has been posted to the marketplace!');
       navigate('/client/cases');
     } catch (err: any) {
@@ -136,9 +283,122 @@ const PostCasePage = () => {
                 value={form.description}
                 onChange={e => update('description', e.target.value)}
                 placeholder="Describe the situation in detail — what happened, when, who was involved, and what outcome you are seeking..."
-                rows={7}
+                rows={5}
                 className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-accent-gold focus:border-transparent outline-none transition-all text-law-navy resize-none"
               />
+            </div>
+
+            {/* Document Upload Section */}
+            <div>
+              <label className="block text-sm font-semibold text-law-navy mb-2">
+                <UploadCloud className="inline w-4 h-4 mr-1.5 -mt-0.5 text-accent-gold" />
+                Supporting Documents (Optional)
+              </label>
+              
+              <div 
+                className={`w-full border-2 border-dashed rounded-xl p-6 text-center transition-colors duration-200 ${
+                  isDragging ? 'border-accent-gold bg-accent-gold/5' : 'border-gray-200 hover:border-accent-gold/50 hover:bg-gray-50'
+                }`}
+                onDragOver={onDragOver}
+                onDragLeave={onDragLeave}
+                onDrop={onDrop}
+              >
+                <UploadCloud className="w-8 h-8 mx-auto text-gray-400 mb-3" />
+                <p className="text-sm text-law-navy font-medium mb-1">Drag and drop your files here</p>
+                <p className="text-xs text-gray-400 mb-4">Supported formats: PDF, DOC, DOCX, TXT, JPG, PNG</p>
+                
+                <input 
+                  type="file" 
+                  multiple 
+                  className="hidden" 
+                  ref={fileInputRef}
+                  onChange={(e) => {
+                    if (e.target.files && e.target.files.length > 0) {
+                      handleFiles(Array.from(e.target.files));
+                      e.target.value = ''; // reset
+                    }
+                  }}
+                  accept={ALLOWED_EXTENSIONS.join(',')}
+                />
+                
+                <button 
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium text-law-navy hover:bg-gray-50 transition-colors shadow-sm"
+                >
+                  Browse Files
+                </button>
+              </div>
+
+              {/* Upload List */}
+              {uploads.length > 0 && (
+                <div className="mt-4 space-y-2">
+                  <AnimatePresence>
+                    {uploads.map(upload => (
+                      <motion.div 
+                        key={upload.localId}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, height: 0, overflow: 'hidden' }}
+                        className={`flex items-center gap-3 p-3 rounded-lg border ${
+                          upload.status === 'error' ? 'bg-red-50 border-red-100' : 'bg-gray-50 border-gray-100'
+                        }`}
+                      >
+                        <div className="w-8 h-8 rounded bg-white flex items-center justify-center shrink-0 border border-gray-100">
+                          <FileIcon className="w-4 h-4 text-law-slate" />
+                        </div>
+                        
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-sm font-medium text-law-navy truncate pr-4">{upload.file.name}</span>
+                            <span className="text-xs text-gray-400 whitespace-nowrap">{(upload.file.size / 1024 / 1024).toFixed(2)} MB</span>
+                          </div>
+                          
+                          {upload.status === 'uploading' && (
+                            <div className="w-full bg-gray-200 rounded-full h-1.5 overflow-hidden">
+                              <div 
+                                className="bg-accent-gold h-1.5 transition-all duration-300" 
+                                style={{ width: `${upload.progress}%` }} 
+                              />
+                            </div>
+                          )}
+                          {upload.status === 'error' && (
+                            <p className="text-xs text-red-500 font-medium">{upload.error}</p>
+                          )}
+                          {upload.status === 'success' && (
+                            <p className="text-xs text-green-600 font-medium flex items-center gap-1">
+                              <CheckCircle className="w-3 h-3" /> Uploaded successfully
+                            </p>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-2 pl-2">
+                          {upload.status === 'uploading' && (
+                            <Loader2 className="w-4 h-4 text-law-slate animate-spin" />
+                          )}
+                          {upload.status === 'error' && (
+                            <button 
+                              type="button" 
+                              onClick={() => retryUpload(upload.localId)}
+                              className="text-xs font-medium text-law-navy hover:underline"
+                            >
+                              Retry
+                            </button>
+                          )}
+                          <button 
+                            type="button" 
+                            onClick={() => removeFile(upload.localId)}
+                            className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors"
+                            disabled={upload.status === 'uploading'}
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </motion.div>
+                    ))}
+                  </AnimatePresence>
+                </div>
+              )}
             </div>
           </motion.div>
         )}
@@ -211,6 +471,20 @@ const PostCasePage = () => {
               <span className="text-sm font-semibold text-law-navy block mb-1.5">Description</span>
               <p className="text-sm text-law-slate whitespace-pre-wrap">{form.description}</p>
             </div>
+
+            {uploads.filter(u => u.status === 'success').length > 0 && (
+              <div className="p-4 bg-gray-50 rounded-xl">
+                <span className="text-sm font-semibold text-law-navy block mb-2">Attached Documents</span>
+                <div className="flex flex-wrap gap-2">
+                  {uploads.filter(u => u.status === 'success').map(u => (
+                    <div key={u.localId} className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-xs font-medium text-law-slate">
+                      <FileIcon className="w-3.5 h-3.5 text-accent-gold" />
+                      <span className="truncate max-w-[150px]">{u.file.name}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <div className="flex items-start gap-2.5 p-4 bg-accent-gold/10 border border-accent-gold/30 rounded-xl">
               <CheckCircle className="w-5 h-5 text-accent-gold mt-0.5 shrink-0" />

@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { toast } from 'react-hot-toast';
 import {
   Briefcase, Search, Filter, CheckCircle2, XCircle, Clock,
-  IndianRupee, Calendar, ChevronDown, AlertTriangle, Users, MessageSquare
+  IndianRupee, Calendar, ChevronDown, AlertTriangle, Users, MessageSquare, FileText
 } from 'lucide-react';
 import { caseService } from '../../services/caseService';
 import { firmService, type Associate } from '../../services/firmService';
@@ -184,33 +184,44 @@ const FirmCasesPage = () => {
             </div>
           </div>
 
-          {(isLawyer || c.acceptedByUserid === user?.id) && c.status !== 'Closed' && (
-            <div className="flex items-center gap-2 shrink-0">
-              <button
-                onClick={() => navigate(`/${user?.userType.toLowerCase()}/messages?caseId=${c.id}`)}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-law-navy/5 text-law-navy border border-law-navy/10 text-sm font-medium hover:bg-law-navy/10 transition-colors"
-              >
-                <MessageSquare className="w-4 h-4" /> Chat
-              </button>
-              <button
-                onClick={() => setConfirm({ type: 'close', caseId: c.id, title: c.title })}
-                disabled={isActing}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-green-50 text-green-700 border border-green-200 text-sm font-medium hover:bg-green-100 transition-colors disabled:opacity-50"
-              >
-                <CheckCircle2 className="w-4 h-4" /> Close
-              </button>
-              <button
-                onClick={() => setConfirm({ type: 'drop', caseId: c.id, title: c.title })}
-                disabled={isActing}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-red-50 text-red-600 border border-red-200 text-sm font-medium hover:bg-red-100 transition-colors disabled:opacity-50"
-              >
-                {isActing
-                  ? <div className="w-4 h-4 border-2 border-red-300 border-t-red-600 rounded-full animate-spin" />
-                  : <><XCircle className="w-4 h-4" /> Drop</>
-                }
-              </button>
-            </div>
-          )}
+          <div className="flex flex-col items-end gap-2 shrink-0">
+            {/* Details — always visible */}
+            <button
+              onClick={() => navigate(`/${user?.userType.toLowerCase()}/cases/${c.id}`)}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-accent-gold/10 text-law-navy border border-accent-gold/30 text-sm font-medium hover:bg-accent-gold/20 transition-colors"
+            >
+              <FileText className="w-4 h-4" /> View Details
+            </button>
+
+            {/* Action buttons — only for active cases the user can manage */}
+            {(isLawyer || c.acceptedByUserid === user?.id) && c.status !== 'Closed' && (
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => navigate(`/${user?.userType.toLowerCase()}/messages?caseId=${c.id}`)}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-law-navy/5 text-law-navy border border-law-navy/10 text-sm font-medium hover:bg-law-navy/10 transition-colors"
+                >
+                  <MessageSquare className="w-4 h-4" /> Chat
+                </button>
+                <button
+                  onClick={() => setConfirm({ type: 'close', caseId: c.id, title: c.title })}
+                  disabled={isActing}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-green-50 text-green-700 border border-green-200 text-sm font-medium hover:bg-green-100 transition-colors disabled:opacity-50"
+                >
+                  <CheckCircle2 className="w-4 h-4" /> Close
+                </button>
+                <button
+                  onClick={() => setConfirm({ type: 'drop', caseId: c.id, title: c.title })}
+                  disabled={isActing}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-red-50 text-red-600 border border-red-200 text-sm font-medium hover:bg-red-100 transition-colors disabled:opacity-50"
+                >
+                  {isActing
+                    ? <div className="w-4 h-4 border-2 border-red-300 border-t-red-600 rounded-full animate-spin" />
+                    : <><XCircle className="w-4 h-4" /> Drop</>
+                  }
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </motion.div>
     );
@@ -238,12 +249,12 @@ const FirmCasesPage = () => {
               { label: 'Total Cases', value: stats.total, color: 'bg-law-navy', textColor: 'text-white', sub: 'All firm cases', icon: <Briefcase className="w-5 h-5 opacity-70" /> },
               { label: 'My Cases', value: myCases.length, color: 'bg-accent-gold', textColor: 'text-law-navy', sub: 'Assigned to me', icon: <Users className="w-5 h-5 opacity-70" /> },
               { label: 'Open', value: stats.open, color: 'bg-blue-50', textColor: 'text-blue-700', sub: 'Awaiting work', icon: <Clock className="w-5 h-5 text-blue-400" /> },
-              { label: 'In Progress', value: stats.inProgress, color: 'bg-amber-50', textColor: 'text-amber-700', sub: 'Being handled', icon: <Briefcase className="w-5 h-5 text-amber-400" /> },
+              { label: 'In Progress', value: stats.inReview + stats.reopened, color: 'bg-amber-50', textColor: 'text-amber-700', sub: 'Being handled', icon: <Briefcase className="w-5 h-5 text-amber-400" /> },
               { label: 'Associates', value: associates.length, color: 'bg-law-navy/5', textColor: 'text-law-navy', sub: 'In your firm', icon: <Users className="w-5 h-5 text-law-navy/40" /> },
             ]
           : [
               { label: 'My Cases', value: myCases.length, color: 'bg-accent-gold', textColor: 'text-law-navy', sub: 'Active Assignments', icon: <Users className="w-5 h-5 opacity-70" /> },
-              { label: 'In Progress', value: stats.inProgress, color: 'bg-amber-50', textColor: 'text-amber-700', sub: 'Current work', icon: <Briefcase className="w-5 h-5 text-amber-400" /> },
+              { label: 'In Progress', value: stats.inReview + stats.reopened, color: 'bg-amber-50', textColor: 'text-amber-700', sub: 'Current work', icon: <Briefcase className="w-5 h-5 text-amber-400" /> },
               { label: 'Closed', value: stats.closed, color: 'bg-green-50', textColor: 'text-green-700', sub: 'Completed', icon: <CheckCircle2 className="w-5 h-5 text-green-500" /> },
             ]
         ).map((stat: any) => (
@@ -310,7 +321,7 @@ const FirmCasesPage = () => {
                   <p className="font-bold text-law-navy mb-2">{j.name}</p>
                   <div className="flex gap-2">
                     <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-[10px] font-bold rounded uppercase">
-                      {j.inProgress} In Progress
+                      {j.inReview} In Progress
                     </span>
                     <span className="px-2 py-0.5 bg-green-100 text-green-700 text-[10px] font-bold rounded uppercase">
                       {j.closed} Closed
