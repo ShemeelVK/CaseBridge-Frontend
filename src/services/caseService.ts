@@ -34,12 +34,21 @@ export const caseService = {
     });
 
     const response = await casesApi.post('/documents/upload', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data'
-      },
+      headers: { 'Content-Type': 'multipart/form-data' },
       onUploadProgress: onProgress
     });
     return response.data;
+  },
+
+  // Upload a single file for chat sharing — reuses the same endpoint
+  uploadChatFile: async (file: File): Promise<{ documentId: number; url: string; name: string }> => {
+    const formData = new FormData();
+    formData.append('files', file);
+    const response = await casesApi.post('/documents/upload', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    // Endpoint returns an array; we only send one file
+    return response.data[0];
   },
 
   getFirmCases: async (): Promise<Case[]> => {

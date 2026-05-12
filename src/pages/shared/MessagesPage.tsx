@@ -122,7 +122,7 @@ const MessagesPage = () => {
       setChannelMeta(prev => ({
         ...prev,
         [caseId]: {
-          lastMessage: msg.text || '',
+          lastMessage: msg.text || (msg.attachments?.length ? '📎 Attachment' : ''),
           hasUnread: msg.senderId !== user?.id
         }
       }));

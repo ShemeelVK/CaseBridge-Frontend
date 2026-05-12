@@ -68,11 +68,17 @@ export const useSignalR = (hubUrl: string, token: string | null) => {
     }
   }, []);
 
-  const sendMessage = useCallback(async (caseId: number, roomType: string, message: string, targetUserId?: number | null, parentMessageId?: number | null) => {
+  const sendMessage = useCallback(async (caseId: number, roomType: string, message: string, targetUserId?: number | null, parentMessageId?: number | null, attachmentDocIds?: number[] | null) => {
     if (connectionRef.current?.state === signalR.HubConnectionState.Connected) {
-      const safeTargetUserId = targetUserId ?? null;
-      const safeParentMessageId = parentMessageId ?? null;
-      await connectionRef.current.invoke('SendMessage', caseId, roomType, message, safeTargetUserId, safeParentMessageId);
+      await connectionRef.current.invoke(
+        'SendMessage',
+        caseId,
+        roomType,
+        message,
+        targetUserId ?? null,
+        parentMessageId ?? null,
+        attachmentDocIds ?? null
+      );
     }
   }, []);
 
