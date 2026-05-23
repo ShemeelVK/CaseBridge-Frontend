@@ -358,7 +358,8 @@ const ChatWindow = ({ caseId, caseTitle, roomType, targetUserId, isUnassigned, o
 
     try {
       await sendMessage(caseId, roomType, text, targetUserId, null, docIds);
-    } catch (err) {
+    } catch (err: any) {
+      alert("SignalR Error: " + err.message);
       setMessages(prev => prev.map(m => m.id === tempId ? { ...m, status: 'failed' } : m));
     }
   };

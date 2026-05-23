@@ -6,10 +6,12 @@ import type { Case } from '../../types/case.types';
 import {
   ArrowLeft, Briefcase, Calendar, CheckCircle2, Clock,
   FileText, Paperclip, IndianRupee, User, MessageSquare,
-  AlertTriangle, ExternalLink
+  AlertTriangle, ExternalLink, Sparkles
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
+import AiChatModal from '../../components/AiChatModal';
+import AiSummaryViewer from '../../components/AiSummaryViewer';
 
 const STATUS_STYLES: Record<string, { label: string; dot: string; badge: string }> = {
   Open:     { label: 'Open',      dot: 'bg-emerald-400', badge: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
@@ -75,9 +77,13 @@ const AuthCaseDetailPage = () => {
 
   const [caseData, setCaseData] = useState<Case | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isAiModalOpen, setIsAiModalOpen] = useState(false);
 
   const isClient   = user?.userType === 'Client';
   const isFirmUser = user?.userType === 'Lawyer' || user?.userType === 'Junior';
+  
+  // AI Chat permission logic: Only Firm Users who have claimed the case can use the AI
+  const canUseAi = isFirmUser && caseData?.acceptedByUserid === user?.id;
 
   // Back navigation target based on role
   const backPath = isClient
@@ -95,9 +101,13 @@ const AuthCaseDetailPage = () => {
           data = await caseService.getFirmCaseById(parseInt(id));
         }
         setCaseData(data);
-      } catch {
-        toast.error('Case not found or you do not have permission to view it.');
-        navigate(backPath);
+      } catch (error: any) {
+        if (error.response && (error.response.status === 404 || error.response.status === 403 || error.response.status === 401)) {
+          toast.error('Case not found or you do not have permission to view it.');
+          navigate(backPath);
+        } else {
+          toast.error('Failed to load case data. Please check your connection or try again.');
+        }
       } finally {
         setLoading(false);
       }
@@ -191,6 +201,11 @@ const AuthCaseDetailPage = () => {
         {/* Left — Description + Documents */}
         <div className="md:col-span-2 space-y-6">
 
+          {/* AI Summary Viewer */}
+          {caseData.aiSummary && (
+            <AiSummaryViewer summary={caseData.aiSummary} />
+          )}
+
           {/* Description */}
           <div className="bg-white rounded-3xl p-8 border border-gray-100 shadow-sm">
             <h2 className="text-lg font-bold text-law-navy mb-4 flex items-center gap-2">
@@ -267,6 +282,23 @@ const AuthCaseDetailPage = () => {
             </button>
           )}
 
+          {/* Ask AI button */}
+          {canUseAi && (
+            <button
+              onClick={() => setIsAiModalOpen(true)}
+              className="w-full relative group overflow-hidden p-[2px] rounded-2xl transition-all duration-300 hover:scale-[1.02] hover:shadow-[0_0_2rem_-0.5rem_#F3C35C]"
+            >
+              <div className="absolute inset-0 bg-gradient-to-r from-accent-gold via-yellow-200 to-accent-gold opacity-70 group-hover:opacity-100 animate-[spin_3s_linear_infinite]" style={{ backgroundSize: '200% 200%' }}></div>
+              <div className="relative flex items-center justify-center gap-2 py-3 px-5 bg-law-navy/95 backdrop-blur-xl rounded-[14px] text-white font-bold text-sm h-full w-full">
+                <div className="absolute inset-0 bg-gradient-to-tr from-white/0 via-white/5 to-white/0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 rounded-[14px]"></div>
+                <Sparkles className="w-4 h-4 text-accent-gold animate-pulse drop-shadow-[0_0_8px_rgba(243,195,92,0.8)]" />
+                <span className="bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-300 group-hover:to-white transition-all">
+                  Ask AI Assistant
+                </span>
+              </div>
+            </button>
+          )}
+
           {/* Closed notice */}
           {caseData.status === 'Closed' && (
             <div className="flex items-start gap-3 p-4 bg-gray-50 rounded-2xl border border-gray-100">
@@ -276,6 +308,13 @@ const AuthCaseDetailPage = () => {
           )}
         </div>
       </div>
+
+      <AiChatModal 
+        isOpen={isAiModalOpen} 
+        onClose={() => setIsAiModalOpen(false)} 
+        caseId={caseData.id} 
+        caseDetails={`Title: ${caseData.title}\nCategory: ${caseData.category}\nBudget: ₹${caseData.budget}\nStatus: ${caseData.status}\nDescription: ${caseData.description}`}
+      />
     </motion.div>
   );
 };

@@ -1,6 +1,6 @@
 import { useState, useEffect, useContext } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, Filter, Briefcase, DollarSign, ExternalLink } from 'lucide-react';
+import { Search, Filter, Briefcase, DollarSign, ExternalLink, Sparkles } from 'lucide-react';
 import { caseService } from '../../services/caseService';
 import type { Case } from '../../types/case.types';
 import CasePreviewModal from '../../components/cases/CasePreviewModal';
@@ -127,9 +127,16 @@ const Marketplace = () => {
                   {caseItem.title}
                 </h3>
                 
-                <p className="text-sm text-law-slate line-clamp-3 mb-6 flex-1">
+                <p className="text-sm text-law-slate line-clamp-3 mb-4 flex-1">
                   {caseItem.description}
                 </p>
+
+                {caseItem.aiSummary && (
+                  <div className="mb-4 flex items-center gap-1.5 text-xs font-semibold text-law-navy/80 bg-accent-gold/10 px-2.5 py-1.5 rounded-lg border border-accent-gold/20 w-fit">
+                    <Sparkles className="w-3 h-3 text-accent-gold animate-pulse" />
+                    AI Summary Available
+                  </div>
+                )}
                 
                 <div className="flex justify-between items-center pt-4 border-t border-gray-50">
                   <div className="flex items-center gap-2 text-law-navy font-bold">

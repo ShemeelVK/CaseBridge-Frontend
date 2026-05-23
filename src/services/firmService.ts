@@ -46,6 +46,11 @@ export const firmService = {
   getFirmProfile: async (axiosPrivate: AxiosInstance): Promise<{ fullName: string, email: string, firmBio: string }> => {
     const response = await axiosPrivate.get('/User/Profile');
     return response.data;
+  },
+
+  removeJuniorAssociate: async (axiosPrivate: AxiosInstance, juniorId: number): Promise<{ message: string }> => {
+    const response = await axiosPrivate.delete(`/senior/remove-junior/${juniorId}`);
+    return response.data;
   }
 };
 

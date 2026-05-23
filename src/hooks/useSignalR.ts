@@ -76,8 +76,7 @@ export const useSignalR = (hubUrl: string, token: string | null) => {
         roomType,
         message,
         targetUserId ?? null,
-        parentMessageId ?? null,
-        attachmentDocIds ?? null
+        parentMessageId ?? null
       );
     }
   }, []);

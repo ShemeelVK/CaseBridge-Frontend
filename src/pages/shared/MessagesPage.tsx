@@ -105,9 +105,6 @@ const MessagesPage = () => {
       const currentCases = casesRef.current;
       const currentSelected = selectedChatRef.current;
 
-      // If the message is for the currently open chat, ignore (ChatWindow handles rendering)
-      if (currentSelected?.id === caseId) return;
-
       const relatedCase = currentCases.find(c => c.id === caseId);
 
       if (!relatedCase) {

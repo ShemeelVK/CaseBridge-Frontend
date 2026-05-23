@@ -2,6 +2,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, Briefcase, DollarSign, Calendar, ChevronRight } from 'lucide-react';
 import type { Case } from '../../types/case.types';
 import { useNavigate } from 'react-router-dom';
+import AiSummaryViewer from '../AiSummaryViewer';
 
 interface CasePreviewModalProps {
   caseData: Case;
@@ -68,6 +69,12 @@ const CasePreviewModal = ({ caseData, onClose }: CasePreviewModalProps) => {
             <p className="text-sm text-law-slate mb-6 line-clamp-4 leading-relaxed">
               {caseData.description}
             </p>
+
+            {caseData.aiSummary && (
+              <div className="mb-6">
+                <AiSummaryViewer summary={caseData.aiSummary} isCompact={true} />
+              </div>
+            )}
 
             <div className="flex flex-wrap gap-6 mb-6">
               <div className="flex items-center gap-2">

@@ -18,5 +18,6 @@ export interface Case {
   lawyerName?: string;
   createdAt?: string;
   lastModifiedByUserId: number;
+  aiSummary?: string;
   documents?: CaseDocument[]; // Only present on authenticated dashboard endpoints
 }

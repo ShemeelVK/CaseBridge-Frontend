@@ -28,3 +28,19 @@ casesApi.interceptors.request.use((config) => {
     }
     return config;
 });
+
+const AI_BASE_URL = import.meta.env.VITE_AI_API_URL || 'http://localhost:5223/api';
+
+export const aiApi = axios.create({
+    baseURL: AI_BASE_URL,
+    headers: { 'Content-Type': 'application/json' }
+});
+
+// Interceptor to automatically attach the access token to aiApi
+aiApi.interceptors.request.use((config) => {
+    const token = localStorage.getItem('accessToken');
+    if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+});

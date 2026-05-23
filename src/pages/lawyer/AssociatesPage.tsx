@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Users, UserPlus, Mail, Briefcase, Hash, Search } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { Users, UserPlus, Mail, Briefcase, Hash, Search, UserMinus, X, AlertTriangle } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { firmService } from '../../services/firmService';
 import type { Associate } from '../../services/firmService';
 import AddAssociateModal from '../../components/firm/AddAssociateModal';
@@ -13,6 +13,10 @@ const AssociatesPage = () => {
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  
+  // Removal State
+  const [associateToRemove, setAssociateToRemove] = useState<Associate | null>(null);
+  const [isRemoving, setIsRemoving] = useState(false);
 
   const fetchAssociates = async () => {
     try {
@@ -30,6 +34,21 @@ const AssociatesPage = () => {
   useEffect(() => {
     fetchAssociates();
   }, []);
+
+  const handleRemoveConfirm = async () => {
+    if (!associateToRemove) return;
+    try {
+      setIsRemoving(true);
+      await firmService.removeJuniorAssociate(axiosPrivate, associateToRemove.Id);
+      toast.success('Junior associate successfully removed.');
+      setAssociateToRemove(null);
+      fetchAssociates(); // refresh list
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || 'Failed to remove associate.');
+    } finally {
+      setIsRemoving(false);
+    }
+  };
 
   const filteredAssociates = associates.filter(a => 
     (a.FullName ?? '').toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -138,8 +157,12 @@ const AssociatesPage = () => {
               
               {/* Quick actions that appear on hover */}
               <div className="absolute bottom-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
-                <button className="text-sm font-medium text-law-navy hover:text-accent-gold transition-colors">
-                  View Profile →
+                <button 
+                  onClick={() => setAssociateToRemove(associate)}
+                  className="flex items-center gap-1.5 text-sm font-bold text-red-500 hover:text-red-700 transition-colors"
+                >
+                  <UserMinus className="w-4 h-4" />
+                  Remove
                 </button>
               </div>
             </motion.div>
@@ -147,12 +170,66 @@ const AssociatesPage = () => {
         </div>
       )}
 
-      {/* Modal */}
+      {/* Add Modal */}
       <AddAssociateModal 
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onSuccess={fetchAssociates}
       />
+
+      {/* Inline Remove Confirmation Modal */}
+      <AnimatePresence>
+        {associateToRemove && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => !isRemoving && setAssociateToRemove(null)}
+              className="absolute inset-0 bg-law-navy/60 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl p-6"
+            >
+              <div className="w-12 h-12 rounded-full bg-red-50 flex items-center justify-center text-red-500 mb-4">
+                <AlertTriangle className="w-6 h-6" />
+              </div>
+              <h3 className="text-xl font-bold text-law-navy mb-2">
+                Remove {associateToRemove.FullName}?
+              </h3>
+              <p className="text-law-slate text-sm leading-relaxed mb-6">
+                Are you sure you want to remove this junior associate from your firm? 
+                This action will <strong className="text-law-navy font-bold">automatically reassign all of their active cases back to you</strong>.
+                This action cannot be undone.
+              </p>
+              
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setAssociateToRemove(null)}
+                  disabled={isRemoving}
+                  className="flex-1 py-3 bg-gray-50 hover:bg-gray-100 text-law-navy font-bold rounded-xl transition-colors disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleRemoveConfirm}
+                  disabled={isRemoving}
+                  className="flex-1 py-3 bg-red-500 hover:bg-red-600 text-white font-bold rounded-xl transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {isRemoving ? (
+                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                  ) : (
+                    'Remove Associate'
+                  )}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
