@@ -1,11 +1,7 @@
 import { useState } from 'react';
-import { Worker, Viewer } from '@react-pdf-viewer/core';
-import { defaultLayoutPlugin } from '@react-pdf-viewer/default-layout';
-import '@react-pdf-viewer/core/lib/styles/index.css';
-import '@react-pdf-viewer/default-layout/lib/styles/index.css';
 import {
   X, ExternalLink, Download, FileText,
-  ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Image as ImageIcon,
+  ChevronLeft, ChevronRight, Image as ImageIcon,
   FileWarning
 } from 'lucide-react';
 
@@ -36,12 +32,8 @@ const EXT_BADGE: Record<string, string> = {
   WEBP: 'bg-purple-100 text-purple-600',
 };
 
-// pdfjs worker from the installed package (Vite resolves this correctly)
-const WORKER_URL = `https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.worker.min.js`;
-
 const DocumentViewerModal = ({ attachments, initialIndex = 0, onClose }: Props) => {
   const [activeIdx, setActiveIdx] = useState(initialIndex);
-  const defaultLayout = defaultLayoutPlugin();
 
   if (attachments.length === 0) return null;
   const current = attachments[activeIdx];
@@ -124,16 +116,13 @@ const DocumentViewerModal = ({ attachments, initialIndex = 0, onClose }: Props) 
         {/* ── Viewer body ─────────────────────────────────────────────────── */}
         <div className="flex-1 overflow-hidden bg-gray-100 min-h-0">
           {isPdf && (
-            <Worker workerUrl={WORKER_URL}>
-              <div className="h-full w-full" style={{ fontFamily: 'Inter, sans-serif' }}>
-                <Viewer
-                  fileUrl={current.fileUrl}
-                  plugins={[defaultLayout]}
-                  defaultScale={1.0}
-                  theme="light"
-                />
-              </div>
-            </Worker>
+            <iframe
+              key={current.fileUrl}
+              src={current.fileUrl}
+              title={current.fileName}
+              className="w-full h-full border-0"
+              style={{ minHeight: 0 }}
+            />
           )}
 
           {isImage && (
