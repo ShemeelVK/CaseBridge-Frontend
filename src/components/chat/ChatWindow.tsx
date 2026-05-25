@@ -3,7 +3,7 @@ import {
   Send, Paperclip, MoreVertical,
   CheckCheck, Building2, Phone, Video, Smile,
   ChevronLeft, RotateCcw, AlertCircle, Clock,
-  X, ExternalLink, FileText, ZoomIn, Image as ImageIcon
+  X, FileText, ZoomIn
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { useSignalR } from '../../hooks/useSignalR';
@@ -12,6 +12,9 @@ import { buildRoomKey, loadFromStorage, saveToStorage, mergeMessages } from '../
 import type { StoredMessage } from '../../utils/chatStorage';
 import DocumentViewerModal from '../shared/DocumentViewerModal';
 import type { AttachmentItem } from '../shared/DocumentViewerModal';
+import { useNotifications } from '../../context/NotificationContext';
+import type { CallEventData } from '../../context/NotificationContext';
+import { toast } from 'react-hot-toast';
 
 type MessageStatus = 'sending' | 'sent' | 'failed';
 
@@ -53,7 +56,8 @@ interface ChatWindowProps {
   caseId: number;
   caseTitle: string;
   roomType: 'internal' | 'external';
-  targetUserId?: number | null;
+  targetUserId?: number | null;   // For DMs only; case chats resolve on the backend
+  participantName?: string;       // The OTHER person's display name
   isUnassigned?: boolean;
   onClose?: () => void;
 }
@@ -147,12 +151,19 @@ const PendingItem = ({ pf, onRemove }: { pf: PendingFile; onRemove: () => void }
 };
 
 // ─── Main ChatWindow ──────────────────────────────────────────────────────────
-const ChatWindow = ({ caseId, caseTitle, roomType, targetUserId, isUnassigned, onClose }: ChatWindowProps) => {
+const ChatWindow = ({ caseId, caseTitle, roomType, targetUserId, participantName, isUnassigned, onClose }: ChatWindowProps) => {
   const { user, accessToken } = useAuth();
+  const { invokeHub, onCallEvent, offCallEvent, setActiveCall, activeCall } = useNotifications();
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState('');
+  const [isCalling, setIsCalling] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // Refs to avoid stale closures in call event handlers
+  const participantNameRef = useRef(participantName);
+  const caseTitleRef = useRef(caseTitle);
+  useEffect(() => { participantNameRef.current = participantName; }, [participantName]);
+  useEffect(() => { caseTitleRef.current = caseTitle; }, [caseTitle]);
 
   // Multi-file upload queue
   const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([]);
@@ -167,6 +178,35 @@ const ChatWindow = ({ caseId, caseTitle, roomType, targetUserId, isUnassigned, o
   }, []);
 
   const roomKey = user?.id ? buildRoomKey(user.id, caseId, roomType, targetUserId) : null;
+
+  // ── Call handling ─────────────────────────────────────────────────────────
+  const initiateCall = useCallback((callType: 'video' | 'audio') => {
+    const roomName = `CB-${caseId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    setIsCalling(true);
+    toast.loading('Calling...', { id: 'call-toast', duration: 30000 });
+    // Backend resolves target from caseId; for DMs pass targetUserId explicitly
+    invokeHub('InitiateCall', caseId, roomType, roomName, callType, targetUserId ?? null);
+  }, [caseId, roomType, targetUserId, invokeHub]);
+
+  useEffect(() => {
+    const handler = (event: CallEventData) => {
+      if (event.type === 'initiated') {
+        toast.dismiss('call-toast');
+        setIsCalling(false);
+        // Read from refs — always gets the latest value, never stale
+        const name = participantNameRef.current || caseTitleRef.current;
+        if (activeCall) setActiveCall({ ...activeCall, participantName: name });
+      } else if (event.type === 'rejected') {
+        toast.dismiss('call-toast');
+        toast.error('Call was declined.');
+        setActiveCall(null);
+        setIsCalling(false);
+      }
+      // 'accepted' — WebRTC offer is created inside useWebRTC hook
+    };
+    onCallEvent(handler);
+    return () => offCallEvent(handler);
+  }, [onCallEvent, offCallEvent, setActiveCall]);
 
   const getHubUrl = () => {
     const base = (import.meta.env.VITE_CASES_API_URL || 'http://localhost:5035/api').replace(/\/api(\/v\d+)?$/, '');
@@ -313,7 +353,6 @@ const ChatWindow = ({ caseId, caseTitle, roomType, targetUserId, isUnassigned, o
   }, []);
 
   // ── Send ──────────────────────────────────────────────────────────────────
-  const allDone = pendingFiles.every(p => p.status === 'done' || p.status === 'error');
   const hasUploadingFiles = pendingFiles.some(p => p.status === 'uploading');
   const validDocIds = pendingFiles.filter(p => p.status === 'done' && p.documentId).map(p => p.documentId!);
 
@@ -396,8 +435,22 @@ const ChatWindow = ({ caseId, caseTitle, roomType, targetUserId, isUnassigned, o
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <button className="p-2 text-gray-400 hover:text-law-navy hover:bg-gray-50 rounded-xl transition-all"><Phone className="w-4 h-4" /></button>
-            <button className="p-2 text-gray-400 hover:text-law-navy hover:bg-gray-50 rounded-xl transition-all"><Video className="w-4 h-4" /></button>
+            <button
+              disabled={isUnassigned || isCalling}
+              onClick={() => initiateCall('audio')}
+              className="p-2 text-gray-400 hover:text-law-navy hover:bg-gray-50 rounded-xl transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+              title="Voice call"
+            >
+              <Phone className="w-4 h-4" />
+            </button>
+            <button
+              disabled={isUnassigned || isCalling}
+              onClick={() => initiateCall('video')}
+              className="p-2 text-gray-400 hover:text-law-navy hover:bg-gray-50 rounded-xl transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+              title="Video call"
+            >
+              <Video className="w-4 h-4" />
+            </button>
             <button className="p-2 text-gray-400 hover:text-law-navy hover:bg-gray-50 rounded-xl transition-all"><MoreVertical className="w-4 h-4" /></button>
           </div>
         </div>

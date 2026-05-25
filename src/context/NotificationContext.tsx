@@ -8,6 +8,27 @@ import { useNotificationSound } from '../hooks/useNotificationSound';
 import { caseService } from '../services/caseService';
 import type { Case } from '../types/case.types';
 
+export interface IncomingCallData {
+  roomName: string;
+  callType: 'video' | 'audio';
+  callerName: string;
+  callerId: number;
+  caseId: number;
+}
+
+export interface CallEventData {
+  type: 'accepted' | 'rejected' | 'initiated';
+  roomName: string;
+}
+
+export interface ActiveCallData {
+  roomName: string;
+  callType: 'video' | 'audio';
+  targetUserId: number;
+  isInitiator: boolean;
+  participantName?: string;
+}
+
 interface NotificationState {
   totalUnread: number;
   roomUnread: Record<number, number>;
@@ -15,10 +36,20 @@ interface NotificationState {
   setActiveRoom: (caseId: number | null) => void;
   cases: Case[];
   setCasesExternal: (cases: Case[]) => void;
-  // Expose the global connection so MessagesPage reuses it
   onMessage: (handler: (msg: any) => void) => void;
   offMessage: (handler: (msg: any) => void) => void;
   joinRoom: (caseId: number, type: string, targetUserId: number | null) => void;
+  // Call signaling
+  incomingCall: IncomingCallData | null;
+  clearIncomingCall: () => void;
+  activeCall: ActiveCallData | null;
+  setActiveCall: (call: ActiveCallData | null) => void;
+  invokeHub: (method: string, ...args: any[]) => Promise<void>;
+  onCallEvent: (handler: (event: CallEventData) => void) => void;
+  offCallEvent: (handler: (event: CallEventData) => void) => void;
+  // Generic hub event subscription (for WebRTC signaling)
+  onHubEvent: (event: string, handler: (...args: any[]) => void) => void;
+  offHubEvent: (event: string, handler: (...args: any[]) => void) => void;
 }
 
 const NotificationContext = createContext<NotificationState | undefined>(undefined);
@@ -40,19 +71,18 @@ export const NotificationProvider = ({ children }: { children: ReactNode }) => {
   const { playSound } = useNotificationSound();
   const [roomUnread, setRoomUnread] = useState<Record<number, number>>({});
   const [cases, setCases] = useState<Case[]>([]);
+  const [incomingCall, setIncomingCall] = useState<IncomingCallData | null>(null);
+  const [activeCall, setActiveCall] = useState<ActiveCallData | null>(null);
 
   const casesRef = useRef<Case[]>([]);
   const connectionRef = useRef<signalR.HubConnection | null>(null);
   const joinedRoomsRef = useRef<Set<number>>(new Set());
-  // Tracks which room is currently open so we skip counting its messages
   const activeRoomRef = useRef<number | null>(null);
+  const messageHandlersRef = useRef<Set<(msg: any) => void>>(new Set());
+  const callEventHandlersRef = useRef<Set<(event: CallEventData) => void>>(new Set());
 
-  // Sync ref whenever cases state changes
-  useEffect(() => {
-    casesRef.current = cases;
-  }, [cases]);
+  useEffect(() => { casesRef.current = cases; }, [cases]);
 
-  // Load cases once on login
   useEffect(() => {
     if (!user) return;
     const load = async () => {
@@ -61,31 +91,30 @@ export const NotificationProvider = ({ children }: { children: ReactNode }) => {
           ? await caseService.getClientCases()
           : await caseService.getFirmChatCases();
         setCases(data);
-      } catch {
-        // degrade gracefully
-      }
+      } catch { /* degrade gracefully */ }
     };
     load();
   }, [user]);
 
-  // Join any new rooms that haven't been joined yet
   const joinPendingRooms = useCallback(() => {
     const conn = connectionRef.current;
-    if (!conn || conn.state !== signalR.HubConnectionState.Connected) return;
+    if (!conn) return;
+    // If not yet connected, retry after a short delay
+    if (conn.state !== signalR.HubConnectionState.Connected) {
+      setTimeout(() => joinPendingRooms(), 500);
+      return;
+    }
     casesRef.current.forEach(c => {
       if (!joinedRoomsRef.current.has(c.id)) {
         conn.invoke('JoinCaseRoom', c.id, 'external', null).catch(() => {});
         joinedRoomsRef.current.add(c.id);
       }
     });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // When cases list changes, join any new rooms immediately
-  useEffect(() => {
-    joinPendingRooms();
-  }, [cases, joinPendingRooms]);
+  useEffect(() => { joinPendingRooms(); }, [cases, joinPendingRooms]);
 
-  // Global persistent SignalR connection
   useEffect(() => {
     if (!accessToken || !user) return;
 
@@ -99,73 +128,71 @@ export const NotificationProvider = ({ children }: { children: ReactNode }) => {
     joinedRoomsRef.current = new Set();
 
     connection.on('ReceiveMessage', (msg: any) => {
-      // Fan out to MessagesPage sidebar listener first (so it gets every message)
       messageHandlersRef.current.forEach(h => h(msg));
-
-      if (msg.senderId === user.id) return; // ignore own messages for badge/sound
+      if (msg.senderId === user.id) return;
       const caseId = msg.caseId as number;
-      // Skip counting if this is the conversation the user is actively reading
       if (activeRoomRef.current === caseId) return;
       setRoomUnread(prev => ({ ...prev, [caseId]: (prev[caseId] ?? 0) + 1 }));
       playSound();
     });
 
+    connection.on('IncomingCall', (data: any) => {
+      setIncomingCall({
+        roomName: data.roomName, callType: data.callType,
+        callerName: data.callerName, callerId: data.callerId, caseId: data.caseId,
+      });
+    });
+
+    // Caller receives this after InitiateCall — opens the VideoCallModal
+    connection.on('CallInitiated', (data: any) => {
+      setActiveCall({
+        roomName: data.roomName,
+        callType: data.callType,
+        targetUserId: data.resolvedTargetId,
+        isInitiator: true,
+      });
+      callEventHandlersRef.current.forEach(h => h({ type: 'initiated', roomName: data.roomName }));
+    });
+
+    connection.on('CallAccepted', (data: any) => {
+      callEventHandlersRef.current.forEach(h => h({ type: 'accepted', roomName: data.roomName }));
+    });
+
+    connection.on('CallRejected', (data: any) => {
+      callEventHandlersRef.current.forEach(h => h({ type: 'rejected', roomName: data.roomName }));
+    });
+
     connection.onreconnected(() => {
-      // Re-join all rooms after reconnect
       joinedRoomsRef.current = new Set();
       joinPendingRooms();
     });
 
     connection.start()
-      .then(() => {
-        // After connecting, join whatever cases have loaded by now
-        joinPendingRooms();
-      })
+      .then(() => joinPendingRooms())
       .catch(() => {});
 
     return () => {
       connection.stop();
       connectionRef.current = null;
     };
-  // Only restart the connection if the user/token changes (not on cases change)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [accessToken, user?.id]);
 
   const clearUnread = useCallback((caseId: number) => {
-    setRoomUnread(prev => {
-      if (!prev[caseId]) return prev;
-      const next = { ...prev };
-      delete next[caseId];
-      return next;
-    });
+    setRoomUnread(prev => { if (!prev[caseId]) return prev; const next = { ...prev }; delete next[caseId]; return next; });
   }, []);
 
   const setActiveRoom = useCallback((caseId: number | null) => {
     activeRoomRef.current = caseId;
     if (caseId !== null) {
-      setRoomUnread(prev => {
-        if (!prev[caseId]) return prev;
-        const next = { ...prev };
-        delete next[caseId];
-        return next;
-      });
+      setRoomUnread(prev => { if (!prev[caseId]) return prev; const next = { ...prev }; delete next[caseId]; return next; });
     }
   }, []);
 
-  const setCasesExternal = useCallback((newCases: Case[]) => {
-    setCases(newCases);
-  }, []);
+  const setCasesExternal = useCallback((newCases: Case[]) => setCases(newCases), []);
 
-  // Allow MessagesPage to add/remove listeners on the SAME connection
-  const messageHandlersRef = useRef<Set<(msg: any) => void>>(new Set());
-
-  const onMessage = useCallback((handler: (msg: any) => void) => {
-    messageHandlersRef.current.add(handler);
-  }, []);
-
-  const offMessage = useCallback((handler: (msg: any) => void) => {
-    messageHandlersRef.current.delete(handler);
-  }, []);
+  const onMessage = useCallback((handler: (msg: any) => void) => { messageHandlersRef.current.add(handler); }, []);
+  const offMessage = useCallback((handler: (msg: any) => void) => { messageHandlersRef.current.delete(handler); }, []);
 
   const joinRoom = useCallback((caseId: number, type: string, targetUserId: number | null) => {
     const conn = connectionRef.current;
@@ -175,12 +202,40 @@ export const NotificationProvider = ({ children }: { children: ReactNode }) => {
     joinedRoomsRef.current.add(caseId);
   }, []);
 
+  const clearIncomingCall = useCallback(() => setIncomingCall(null), []);
+
+  const invokeHub = useCallback(async (method: string, ...args: any[]) => {
+    const conn = connectionRef.current;
+    if (conn?.state === signalR.HubConnectionState.Connected) {
+      await conn.invoke(method, ...args).catch(() => {});
+    }
+  }, []);
+
+  const onCallEvent = useCallback((handler: (event: CallEventData) => void) => {
+    callEventHandlersRef.current.add(handler);
+  }, []);
+  const offCallEvent = useCallback((handler: (event: CallEventData) => void) => {
+    callEventHandlersRef.current.delete(handler);
+  }, []);
+
+  // Generic hub event subscription — used by useWebRTC for ReceiveOffer/Answer/IceCandidate
+  const onHubEvent = useCallback((event: string, handler: (...args: any[]) => void) => {
+    connectionRef.current?.on(event, handler);
+  }, []);
+  const offHubEvent = useCallback((event: string, handler: (...args: any[]) => void) => {
+    connectionRef.current?.off(event, handler);
+  }, []);
+
   const totalUnread = Object.values(roomUnread).reduce((sum, n) => sum + n, 0);
 
   return (
     <NotificationContext.Provider value={{
       totalUnread, roomUnread, clearUnread, setActiveRoom,
-      cases, setCasesExternal, onMessage, offMessage, joinRoom
+      cases, setCasesExternal, onMessage, offMessage, joinRoom,
+      incomingCall, clearIncomingCall,
+      activeCall, setActiveCall,
+      invokeHub, onCallEvent, offCallEvent,
+      onHubEvent, offHubEvent,
     }}>
       {children}
     </NotificationContext.Provider>

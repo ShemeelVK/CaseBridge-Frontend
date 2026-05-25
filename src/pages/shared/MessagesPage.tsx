@@ -23,7 +23,7 @@ const MessagesPage = () => {
   const [associates, setAssociates] = useState<Associate[]>([]);
   const [senior, setSenior] = useState<Associate | null>(null);
   const [loading, setLoading] = useState(true);
-  const [selectedChat, setSelectedChat] = useState<{ id: number; title: string; type: 'internal' | 'external'; targetUserId?: number; isUnassigned?: boolean } | null>(null);
+  const [selectedChat, setSelectedChat] = useState<{ id: number; title: string; type: 'internal' | 'external'; targetUserId?: number; isUnassigned?: boolean; participantName?: string } | null>(null);
   const [incomingCaseIds, setIncomingCaseIds] = useState<Set<number>>(new Set());
   // lastMessage preview and unread badge per caseId
   const [channelMeta, setChannelMeta] = useState<Record<number, { lastMessage: string; hasUnread: boolean }>>({});
@@ -71,7 +71,10 @@ const MessagesPage = () => {
         if (urlCaseId) {
           const targetCase = casesData.find(c => c.id === parseInt(urlCaseId));
           if (targetCase) {
-            setSelectedChat({ id: targetCase.id, title: targetCase.title, type: 'external', isUnassigned: targetCase.assignedFirmId == null });
+            const personName = user?.userType === 'Client'
+              ? (targetCase.lawyerName || 'Lawyer')
+              : (targetCase.clientName || 'Client');
+            setSelectedChat({ id: targetCase.id, title: targetCase.title, type: 'external', isUnassigned: targetCase.assignedFirmId == null, participantName: personName });
           }
         } else if (urlTargetUserId && membersData) {
           const id = parseInt(urlTargetUserId);
@@ -224,7 +227,10 @@ const MessagesPage = () => {
                   <button
                     key={c.id}
                     onClick={() => {
-                      setSelectedChat({ id: c.id, title: c.title, type: 'external', isUnassigned: c.assignedFirmId == null });
+                      const personName = user?.userType === 'Client'
+                        ? (c.lawyerName || 'Lawyer')
+                        : (c.clientName || 'Client');
+                      setSelectedChat({ id: c.id, title: c.title, type: 'external', isUnassigned: c.assignedFirmId == null, participantName: personName });
                       setChannelMeta(prev => prev[c.id] ? { ...prev, [c.id]: { ...prev[c.id], hasUnread: false } } : prev);
                       clearUnread(c.id);
                     }}
@@ -267,7 +273,7 @@ const MessagesPage = () => {
                   
                   {senior && (
                     <button
-                      onClick={() => setSelectedChat({ id: 0, title: senior.FullName, type: 'internal', targetUserId: senior.Id })}
+                      onClick={() => setSelectedChat({ id: 0, title: senior.FullName, type: 'internal', targetUserId: senior.Id, participantName: senior.FullName })}
                       className={`w-full p-4 rounded-2xl flex items-center gap-4 transition-all ${selectedChat?.targetUserId === senior.Id ? 'bg-law-navy text-white shadow-xl shadow-law-navy/20' : 'hover:bg-gray-50'}`}
                     >
                       <div className="relative shrink-0">
@@ -288,7 +294,7 @@ const MessagesPage = () => {
                   {filteredAssociates.map(a => (
                     <button
                       key={a.Id}
-                      onClick={() => setSelectedChat({ id: 0, title: a.FullName, type: 'internal', targetUserId: a.Id })}
+                      onClick={() => setSelectedChat({ id: a.Id, title: a.FullName, type: 'internal', targetUserId: a.Id, participantName: a.FullName })}
                       className={`w-full p-4 rounded-2xl flex items-center gap-4 transition-all ${selectedChat?.targetUserId === a.Id ? 'bg-law-navy text-white shadow-xl shadow-law-navy/20' : 'hover:bg-gray-50'}`}
                     >
                       <div className="relative shrink-0">
@@ -326,6 +332,7 @@ const MessagesPage = () => {
                 caseTitle={selectedChat.title}
                 roomType={selectedChat.type}
                 targetUserId={selectedChat.targetUserId}
+                participantName={selectedChat.participantName}
                 isUnassigned={selectedChat.isUnassigned}
                 onClose={() => setSelectedChat(null)}
               />
