@@ -2,17 +2,26 @@ import { useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Topbar from './Topbar';
-import { motion, AnimatePresence } from 'framer-motion';
+import { AnimatePresence } from 'framer-motion';
 import { NotificationProvider } from '../../context/NotificationContext';
 import { useNotifications } from '../../context/NotificationContext';
 import IncomingCallModal from '../chat/IncomingCallModal';
 import VideoCallModal from '../chat/VideoCallModal';
+import CallStatusToast from '../shared/CallStatusToast';
+import { motion } from 'framer-motion';
 
 // Inner wrapper so it can access NotificationContext
 const DashboardContent = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const { incomingCall, clearIncomingCall, activeCall, setActiveCall, invokeHub } = useNotifications();
+  const {
+    incomingCall, clearIncomingCall,
+    activeCall, setActiveCall,
+    heldCall, holdCurrentAndAnswer, resumeHeldCall, declineWhileBusy,
+    invokeHub,
+    callToast, dismissCallToast,
+  } = useNotifications();
 
+  // ── Normal accept (no active call) ──────────────────────────────────────────
   const handleAccept = () => {
     if (!incomingCall) return;
     invokeHub('AcceptCall', incomingCall.roomName, incomingCall.callerId);
@@ -30,6 +39,17 @@ const DashboardContent = () => {
     if (!incomingCall) return;
     invokeHub('RejectCall', incomingCall.roomName, incomingCall.callerId);
     clearIncomingCall();
+  };
+
+  // ── Held-call actions ────────────────────────────────────────────────────────
+  const handleHoldAndAnswer = () => {
+    if (!incomingCall) return;
+    holdCurrentAndAnswer(incomingCall);
+  };
+
+  const handleDeclineBusy = () => {
+    if (!incomingCall) return;
+    declineWhileBusy(incomingCall);
   };
 
   return (
@@ -55,7 +75,7 @@ const DashboardContent = () => {
         </main>
       </div>
 
-      {/* Global: Incoming call notification (works from ANY page) */}
+      {/* Global: Incoming call notification */}
       <AnimatePresence>
         {incomingCall && (
           <IncomingCallModal
@@ -64,21 +84,50 @@ const DashboardContent = () => {
             callType={incomingCall.callType}
             onAccept={handleAccept}
             onReject={handleReject}
+            // On-call mode — user is already in a call
+            isOnCall={!!activeCall}
+            currentCallParticipant={activeCall?.participantName}
+            onHoldAndAnswer={handleHoldAndAnswer}
+            onDeclineBusy={handleDeclineBusy}
           />
         )}
       </AnimatePresence>
 
-      {/* Global: Active video/audio call */}
-      {activeCall && (
-        <VideoCallModal
-          roomName={activeCall.roomName}
-          targetUserId={activeCall.targetUserId}
-          callType={activeCall.callType}
-          isInitiator={activeCall.isInitiator}
-          participantName={activeCall.participantName}
-          onClose={() => setActiveCall(null)}
-        />
-      )}
+      {/* Global: Active video/audio call (full-screen) */}
+      <AnimatePresence>
+        {activeCall && (
+          <VideoCallModal
+            key={`active-${activeCall.roomName}`}
+            roomName={activeCall.roomName}
+            targetUserId={activeCall.targetUserId}
+            callType={activeCall.callType}
+            isInitiator={activeCall.isInitiator}
+            participantName={activeCall.participantName}
+            isHeld={false}
+            onClose={() => setActiveCall(null)}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Global: Held call (minimized pill, bottom-right) */}
+      <AnimatePresence>
+        {heldCall && (
+          <VideoCallModal
+            key={`held-${heldCall.roomName}`}
+            roomName={heldCall.roomName}
+            targetUserId={heldCall.targetUserId}
+            callType={heldCall.callType}
+            isInitiator={heldCall.isInitiator}
+            participantName={heldCall.participantName}
+            isHeld={true}
+            onResume={resumeHeldCall}
+            onClose={() => {/* handled internally by endCall in the pill */}}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Global: Enterprise call status notification (top-center) */}
+      <CallStatusToast toast={callToast} onDismiss={dismissCallToast} />
     </div>
   );
 };

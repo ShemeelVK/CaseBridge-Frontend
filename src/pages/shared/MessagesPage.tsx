@@ -23,6 +23,7 @@ const MessagesPage = () => {
   const [associates, setAssociates] = useState<Associate[]>([]);
   const [senior, setSenior] = useState<Associate | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isBackgroundRefreshing, setIsBackgroundRefreshing] = useState(false);
   const [selectedChat, setSelectedChat] = useState<{ id: number; title: string; type: 'internal' | 'external'; targetUserId?: number; isUnassigned?: boolean; participantName?: string } | null>(null);
   const [incomingCaseIds, setIncomingCaseIds] = useState<Set<number>>(new Set());
   // lastMessage preview and unread badge per caseId
@@ -31,7 +32,7 @@ const MessagesPage = () => {
   const [activeTab, setActiveTab] = useState<'cases' | 'firm'>('cases');
   const casesRef = useRef<Case[]>([]);
   const selectedChatRef = useRef(selectedChat);
-  const fetchCasesRef = useRef<() => Promise<void>>(() => Promise.resolve());
+  const fetchCasesRef = useRef<(background?: boolean) => Promise<void>>(() => Promise.resolve());
 
   // Background SignalR connection for sidebar unread preview updates only
   const isLawyerUser = user?.userType === 'Lawyer' || user?.userType === 'Junior';
@@ -45,9 +46,10 @@ const MessagesPage = () => {
   }, [selectedChat, setActiveRoom]);
 
   useEffect(() => {
-    const fetchData = async () => {
+  fetchCasesRef.current = async (background = false) => {
       try {
-        setLoading(true);
+        if (!background) setLoading(true);
+        else setIsBackgroundRefreshing(true);
         let casesData: Case[] = [];
         let membersData: FirmMembers | null = null;
 
@@ -55,44 +57,35 @@ const MessagesPage = () => {
           casesData = await caseService.getClientCases();
         } else {
           casesData = await caseService.getFirmChatCases();
-          // Fetch firm members (senior and colleagues)
           membersData = await firmService.getMyAssociates(axiosPrivate);
           setAssociates(membersData.associates || []);
-          if (membersData.senior) {
-            setSenior(membersData.senior);
-          }
+          if (membersData.senior) setSenior(membersData.senior);
         }
         setCases(casesData);
 
-        // Handle URL Parameters for auto-selecting chat
-        const urlCaseId = searchParams.get('caseId');
-        const urlTargetUserId = searchParams.get('targetUserId');
-
-        if (urlCaseId) {
-          const targetCase = casesData.find(c => c.id === parseInt(urlCaseId));
-          if (targetCase) {
-            const personName = user?.userType === 'Client'
-              ? (targetCase.lawyerName || 'Lawyer')
-              : (targetCase.clientName || 'Client');
-            setSelectedChat({ id: targetCase.id, title: targetCase.title, type: 'external', isUnassigned: targetCase.assignedFirmId == null, participantName: personName });
-          }
-        } else if (urlTargetUserId && membersData) {
-          const id = parseInt(urlTargetUserId);
-          const targetMember = (membersData.associates.find(a => a.Id === id)) || (membersData.senior?.Id === id ? membersData.senior : null);
-          if (targetMember) {
-            setSelectedChat({ id: 0, title: targetMember.FullName, type: 'internal', targetUserId: targetMember.Id });
+        if (!background) {
+          const urlCaseId = searchParams.get('caseId');
+          const urlTargetUserId = searchParams.get('targetUserId');
+          if (urlCaseId) {
+            const targetCase = casesData.find(c => c.id === parseInt(urlCaseId));
+            if (targetCase) {
+              const personName = user?.userType === 'Client' ? (targetCase.lawyerName || 'Lawyer') : (targetCase.clientName || 'Client');
+              setSelectedChat({ id: targetCase.id, title: targetCase.title, type: 'external', isUnassigned: targetCase.assignedFirmId == null, participantName: personName });
+            }
+          } else if (urlTargetUserId && membersData) {
+            const id = parseInt(urlTargetUserId);
+            const targetMember = (membersData.associates.find(a => a.Id === id)) || (membersData.senior?.Id === id ? membersData.senior : null);
+            if (targetMember) setSelectedChat({ id: 0, title: targetMember.FullName, type: 'internal', targetUserId: targetMember.Id });
           }
         }
       } catch (err) {
         console.error('Failed to load messaging data:', err);
       } finally {
         setLoading(false);
+        setIsBackgroundRefreshing(false);
       }
     };
-
-    fetchData();
-    // Store fetchData in a ref so the listener can call it for brand-new channels
-    fetchCasesRef.current = fetchData;
+    fetchCasesRef.current();
   }, [user, axiosPrivate, searchParams]);
 
   // Join all case rooms via the shared global connection
@@ -111,8 +104,8 @@ const MessagesPage = () => {
       const relatedCase = currentCases.find(c => c.id === caseId);
 
       if (!relatedCase) {
-        // Brand-new channel: re-fetch cases so the sidebar shows it
-        fetchCasesRef.current().then(() => {
+        // Brand-new channel: background refresh (no loading spinner)
+        fetchCasesRef.current(true).then(() => {
           joinRoom(caseId, 'external', null);
         });
         return;
@@ -318,7 +311,7 @@ const MessagesPage = () => {
 
       {/* Main Content: Chat Window */}
       <div className="flex-1 flex flex-col relative bg-white md:m-4 md:rounded-3xl shadow-2xl shadow-law-navy/5 overflow-hidden">
-        <AnimatePresence mode="wait">
+        <AnimatePresence>
           {selectedChat ? (
             <motion.div 
               key={`${selectedChat.id}-${selectedChat.targetUserId}-${selectedChat.type}`} 

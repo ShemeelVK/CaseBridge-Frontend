@@ -7,6 +7,7 @@ import { useAuth } from '../hooks/useAuth';
 import { useNotificationSound } from '../hooks/useNotificationSound';
 import { caseService } from '../services/caseService';
 import type { Case } from '../types/case.types';
+import type { CallToastData } from '../components/shared/CallStatusToast';
 
 export interface IncomingCallData {
   roomName: string;
@@ -19,6 +20,8 @@ export interface IncomingCallData {
 export interface CallEventData {
   type: 'accepted' | 'rejected' | 'initiated';
   roomName: string;
+  resolvedTargetId?: number;   // Only on 'initiated'
+  callType?: 'video' | 'audio'; // Only on 'initiated'
 }
 
 export interface ActiveCallData {
@@ -44,12 +47,21 @@ interface NotificationState {
   clearIncomingCall: () => void;
   activeCall: ActiveCallData | null;
   setActiveCall: (call: ActiveCallData | null) => void;
+  heldCall: ActiveCallData | null;               // Call on hold
+  holdCurrentAndAnswer: (incoming: IncomingCallData) => void;
+  resumeHeldCall: () => void;
+  endHeldCall: () => void;
+  declineWhileBusy: (incoming: IncomingCallData) => void;
   invokeHub: (method: string, ...args: any[]) => Promise<void>;
   onCallEvent: (handler: (event: CallEventData) => void) => void;
   offCallEvent: (handler: (event: CallEventData) => void) => void;
   // Generic hub event subscription (for WebRTC signaling)
   onHubEvent: (event: string, handler: (...args: any[]) => void) => void;
   offHubEvent: (event: string, handler: (...args: any[]) => void) => void;
+  // Call status toasts
+  callToast: CallToastData | null;
+  showCallToast: (data: CallToastData) => void;
+  dismissCallToast: () => void;
 }
 
 const NotificationContext = createContext<NotificationState | undefined>(undefined);
@@ -73,6 +85,13 @@ export const NotificationProvider = ({ children }: { children: ReactNode }) => {
   const [cases, setCases] = useState<Case[]>([]);
   const [incomingCall, setIncomingCall] = useState<IncomingCallData | null>(null);
   const [activeCall, setActiveCall] = useState<ActiveCallData | null>(null);
+  const [heldCall, setHeldCall] = useState<ActiveCallData | null>(null);
+  const [callToast, setCallToast] = useState<CallToastData | null>(null);
+
+  const showCallToast = useCallback((data: CallToastData) => {
+    setCallToast(data);
+  }, []);
+  const dismissCallToast = useCallback(() => setCallToast(null), []);
 
   const casesRef = useRef<Case[]>([]);
   const connectionRef = useRef<signalR.HubConnection | null>(null);
@@ -145,13 +164,14 @@ export const NotificationProvider = ({ children }: { children: ReactNode }) => {
 
     // Caller receives this after InitiateCall — opens the VideoCallModal
     connection.on('CallInitiated', (data: any) => {
-      setActiveCall({
+      // Don't set activeCall here — ChatWindow sets it with the full data
+      // including participantName to avoid race condition
+      callEventHandlersRef.current.forEach(h => h({
+        type: 'initiated',
         roomName: data.roomName,
-        callType: data.callType,
-        targetUserId: data.resolvedTargetId,
-        isInitiator: true,
-      });
-      callEventHandlersRef.current.forEach(h => h({ type: 'initiated', roomName: data.roomName }));
+        resolvedTargetId: data.resolvedTargetId,
+        callType: data.callType as 'video' | 'audio',
+      }));
     });
 
     connection.on('CallAccepted', (data: any) => {
@@ -160,6 +180,51 @@ export const NotificationProvider = ({ children }: { children: ReactNode }) => {
 
     connection.on('CallRejected', (data: any) => {
       callEventHandlersRef.current.forEach(h => h({ type: 'rejected', roomName: data.roomName }));
+      // Show decline toast to the caller
+      setCallToast({ type: 'declined' });
+    });
+
+    // Caller is busy (receiver had another call and sent BusyReject)
+    connection.on('CallBusy', (_data: any) => {
+      setCallToast({ type: 'busy' });
+    });
+
+    // Caller cancelled before receiver answered — dismiss the ringing modal
+    connection.on('CallEnded', (data: any) => {
+      // Use functional form to read current state
+      setIncomingCall(prev => {
+        if (prev?.roomName === data.roomName) {
+          setCallToast({ type: 'cancelled' });
+          return null;
+        }
+        return prev;
+      });
+      // If the ACTIVE call ended from remote, check if there's a held call to auto-resume
+      setActiveCall(prev => {
+        if (prev?.roomName === data.roomName) {
+          // Auto-resume held call when active call ends
+          setHeldCall(held => {
+            if (held) {
+              // Resume the held call by moving it to active
+              setTimeout(() => {
+                setActiveCall(held);
+                setHeldCall(null);
+              }, 0);
+            }
+            return null;
+          });
+          return null;
+        }
+        return prev;
+      });
+      // If the HELD call ended from remote
+      setHeldCall(prev => {
+        if (prev?.roomName === data.roomName) {
+          setCallToast({ type: 'ended' });
+          return null;
+        }
+        return prev;
+      });
     });
 
     connection.onreconnected(() => {
@@ -211,6 +276,47 @@ export const NotificationProvider = ({ children }: { children: ReactNode }) => {
     }
   }, []);
 
+  // ── Hold/resume helpers ─────────────────────────────────────────────────────
+  const holdCurrentAndAnswer = useCallback((incoming: IncomingCallData) => {
+    setHeldCall(prev => prev ?? null); // keep existing held if any (shouldn't happen)
+    setActiveCall(current => {
+      if (current) setHeldCall(current); // park the current call
+      return {
+        roomName: incoming.roomName,
+        callType: incoming.callType,
+        targetUserId: incoming.callerId,
+        isInitiator: false,
+        participantName: incoming.callerName,
+      };
+    });
+    invokeHub('AcceptCall', incoming.roomName, incoming.callerId);
+    setIncomingCall(null);
+  }, [invokeHub]);
+
+  const resumeHeldCall = useCallback(() => {
+    setHeldCall(held => {
+      if (!held) return null;
+      setActiveCall(held); // promote held → active
+      return null;
+    });
+  }, []);
+
+  const endHeldCall = useCallback(() => {
+    setHeldCall(held => {
+      if (!held) return null;
+      invokeHub('EndCall', held.roomName, held.targetUserId);
+      setCallToast({ type: 'ended' });
+      return null;
+    });
+  }, [invokeHub]);
+
+  const declineWhileBusy = useCallback((incoming: IncomingCallData) => {
+    invokeHub('BusyReject', incoming.roomName, incoming.callerId);
+    setIncomingCall(null);
+  }, [invokeHub]);
+
+
+
   const onCallEvent = useCallback((handler: (event: CallEventData) => void) => {
     callEventHandlersRef.current.add(handler);
   }, []);
@@ -234,8 +340,10 @@ export const NotificationProvider = ({ children }: { children: ReactNode }) => {
       cases, setCasesExternal, onMessage, offMessage, joinRoom,
       incomingCall, clearIncomingCall,
       activeCall, setActiveCall,
+      heldCall, holdCurrentAndAnswer, resumeHeldCall, endHeldCall, declineWhileBusy,
       invokeHub, onCallEvent, offCallEvent,
       onHubEvent, offHubEvent,
+      callToast, showCallToast, dismissCallToast,
     }}>
       {children}
     </NotificationContext.Provider>

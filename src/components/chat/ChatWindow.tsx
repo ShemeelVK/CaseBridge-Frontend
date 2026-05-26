@@ -153,7 +153,7 @@ const PendingItem = ({ pf, onRemove }: { pf: PendingFile; onRemove: () => void }
 // ─── Main ChatWindow ──────────────────────────────────────────────────────────
 const ChatWindow = ({ caseId, caseTitle, roomType, targetUserId, participantName, isUnassigned, onClose }: ChatWindowProps) => {
   const { user, accessToken } = useAuth();
-  const { invokeHub, onCallEvent, offCallEvent, setActiveCall, activeCall } = useNotifications();
+  const { invokeHub, onCallEvent, offCallEvent, setActiveCall, showCallToast } = useNotifications();
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState('');
   const [isCalling, setIsCalling] = useState(false);
@@ -193,12 +193,19 @@ const ChatWindow = ({ caseId, caseTitle, roomType, targetUserId, participantName
       if (event.type === 'initiated') {
         toast.dismiss('call-toast');
         setIsCalling(false);
-        // Read from refs — always gets the latest value, never stale
-        const name = participantNameRef.current || caseTitleRef.current;
-        if (activeCall) setActiveCall({ ...activeCall, participantName: name });
+        // Set activeCall HERE (not in NotificationContext) so participantName is included
+        // participantNameRef always has the latest value — no stale closure risk
+        const name = participantNameRef.current || caseTitleRef.current || 'Participant';
+        setActiveCall({
+          roomName: event.roomName,
+          callType: event.callType!,
+          targetUserId: event.resolvedTargetId!,
+          isInitiator: true,
+          participantName: name,
+        });
       } else if (event.type === 'rejected') {
         toast.dismiss('call-toast');
-        toast.error('Call was declined.');
+        showCallToast({ type: 'declined' });
         setActiveCall(null);
         setIsCalling(false);
       }

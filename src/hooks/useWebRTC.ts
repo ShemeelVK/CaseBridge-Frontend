@@ -34,6 +34,8 @@ export const useWebRTC = ({ roomName, targetUserId, callType, isInitiator }: Use
   const [callState, setCallState] = useState<CallState>('ringing');
   const [isMuted, setIsMuted] = useState(false);
   const [isCameraOff, setIsCameraOff] = useState(callType === 'audio');
+  const [isHeld, setIsHeld] = useState(false);          // WE put this call on hold
+  const [isRemoteHeld, setIsRemoteHeld] = useState(false); // REMOTE put us on hold
 
   useEffect(() => { localStreamRef.current = localStream; }, [localStream]);
 
@@ -195,6 +197,32 @@ export const useWebRTC = ({ roomName, targetUserId, callType, isInitiator }: Use
     setCallState('ended');
   }, [invokeHub, roomName, targetUserId]);
 
+  // Hold: disable all outgoing tracks (PC stays alive), notify remote
+  const holdCall = useCallback(() => {
+    if (!pcRef.current) return;
+    pcRef.current.getSenders().forEach(s => { if (s.track) s.track.enabled = false; });
+    setIsHeld(true);
+    invokeHub('NotifyHold', roomName, targetUserId, true);
+  }, [invokeHub, roomName, targetUserId]);
+
+  // Resume: re-enable outgoing tracks, notify remote
+  const resumeCall = useCallback(() => {
+    if (!pcRef.current) return;
+    pcRef.current.getSenders().forEach(s => { if (s.track) s.track.enabled = true; });
+    setIsHeld(false);
+    invokeHub('NotifyHold', roomName, targetUserId, false);
+  }, [invokeHub, roomName, targetUserId]);
+
+  // Listen for remote hold/resume (the other side put us on hold)
+  useEffect(() => {
+    const handler = (data: any) => {
+      if (data.roomName !== roomName) return;
+      setIsRemoteHeld(data.isOnHold);
+    };
+    onHubEvent('CallHoldChanged', handler);
+    return () => offHubEvent('CallHoldChanged', handler);
+  }, [roomName, onHubEvent, offHubEvent]);
+
   // ── Listen for remote side ending the call (immediate close) ─────────────
   useEffect(() => {
     const handler = (data: any) => {
@@ -213,5 +241,9 @@ export const useWebRTC = ({ roomName, targetUserId, callType, isInitiator }: Use
     localStreamRef.current?.getTracks().forEach(t => t.stop());
   }, []);
 
-  return { localStream, remoteStream, callState, isMuted, isCameraOff, toggleMic, toggleCamera, endCall };
+  return {
+    localStream, remoteStream, callState,
+    isMuted, isCameraOff, isHeld, isRemoteHeld,
+    toggleMic, toggleCamera, holdCall, resumeCall, endCall
+  };
 };
