@@ -30,7 +30,7 @@ const VideoCallModal = ({
   const controlsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const prevIsHeld = useRef(false);
 
-  const { showCallToast, endHeldCall } = useNotifications();
+  const { showCallToast } = useNotifications();
 
   const {
     localStream, remoteStream, callState,

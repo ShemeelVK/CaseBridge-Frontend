@@ -23,9 +23,7 @@ const MessagesPage = () => {
   const [associates, setAssociates] = useState<Associate[]>([]);
   const [senior, setSenior] = useState<Associate | null>(null);
   const [loading, setLoading] = useState(true);
-  const [isBackgroundRefreshing, setIsBackgroundRefreshing] = useState(false);
   const [selectedChat, setSelectedChat] = useState<{ id: number; title: string; type: 'internal' | 'external'; targetUserId?: number; isUnassigned?: boolean; participantName?: string } | null>(null);
-  const [incomingCaseIds, setIncomingCaseIds] = useState<Set<number>>(new Set());
   // lastMessage preview and unread badge per caseId
   const [channelMeta, setChannelMeta] = useState<Record<number, { lastMessage: string; hasUnread: boolean }>>({});
   const [searchTerm, setSearchTerm] = useState('');
@@ -49,7 +47,6 @@ const MessagesPage = () => {
   fetchCasesRef.current = async (background = false) => {
       try {
         if (!background) setLoading(true);
-        else setIsBackgroundRefreshing(true);
         let casesData: Case[] = [];
         let membersData: FirmMembers | null = null;
 
@@ -82,7 +79,6 @@ const MessagesPage = () => {
         console.error('Failed to load messaging data:', err);
       } finally {
         setLoading(false);
-        setIsBackgroundRefreshing(false);
       }
     };
     fetchCasesRef.current();
@@ -99,7 +95,6 @@ const MessagesPage = () => {
     const handleIncoming = (msg: any) => {
       const caseId = msg.caseId as number;
       const currentCases = casesRef.current;
-      const currentSelected = selectedChatRef.current;
 
       const relatedCase = currentCases.find(c => c.id === caseId);
 
@@ -126,7 +121,7 @@ const MessagesPage = () => {
         return [relatedCase, ...others];
       });
 
-      setIncomingCaseIds(prev => new Set(prev).add(caseId));
+
     };
 
     onMessage(handleIncoming);

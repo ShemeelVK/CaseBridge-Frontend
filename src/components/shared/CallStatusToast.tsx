@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { PhoneOff, PhoneMissed, WifiOff, PhoneCall, Clock } from 'lucide-react';
+import { PhoneOff, PhoneMissed, WifiOff, Clock } from 'lucide-react';
 
 export type CallToastType = 'ended' | 'declined' | 'cancelled' | 'missed' | 'failed' | 'busy';
 

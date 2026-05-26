@@ -50,7 +50,8 @@ interface NotificationState {
   heldCall: ActiveCallData | null;               // Call on hold
   holdCurrentAndAnswer: (incoming: IncomingCallData) => void;
   resumeHeldCall: () => void;
-  endHeldCall: () => void;
+  endHeldCall: () => void;      // Terminate held call from outside the modal
+  clearHeldCall: () => void;    // Clear held state after modal has cleaned up internally
   declineWhileBusy: (incoming: IncomingCallData) => void;
   invokeHub: (method: string, ...args: any[]) => Promise<void>;
   onCallEvent: (handler: (event: CallEventData) => void) => void;
@@ -315,6 +316,10 @@ export const NotificationProvider = ({ children }: { children: ReactNode }) => {
     setIncomingCall(null);
   }, [invokeHub]);
 
+  // Called by held VideoCallModal's onClose AFTER endCall() has already
+  // cleaned up WebRTC and signalled the remote — just clears context state.
+  const clearHeldCall = useCallback(() => setHeldCall(null), []);
+
 
 
   const onCallEvent = useCallback((handler: (event: CallEventData) => void) => {
@@ -340,7 +345,7 @@ export const NotificationProvider = ({ children }: { children: ReactNode }) => {
       cases, setCasesExternal, onMessage, offMessage, joinRoom,
       incomingCall, clearIncomingCall,
       activeCall, setActiveCall,
-      heldCall, holdCurrentAndAnswer, resumeHeldCall, endHeldCall, declineWhileBusy,
+      heldCall, holdCurrentAndAnswer, resumeHeldCall, endHeldCall, clearHeldCall, declineWhileBusy,
       invokeHub, onCallEvent, offCallEvent,
       onHubEvent, offHubEvent,
       callToast, showCallToast, dismissCallToast,

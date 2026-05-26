@@ -16,7 +16,7 @@ const DashboardContent = () => {
   const {
     incomingCall, clearIncomingCall,
     activeCall, setActiveCall,
-    heldCall, holdCurrentAndAnswer, resumeHeldCall, declineWhileBusy,
+    heldCall, holdCurrentAndAnswer, resumeHeldCall, clearHeldCall, declineWhileBusy,
     invokeHub,
     callToast, dismissCallToast,
   } = useNotifications();
@@ -121,7 +121,7 @@ const DashboardContent = () => {
             participantName={heldCall.participantName}
             isHeld={true}
             onResume={resumeHeldCall}
-            onClose={() => {/* handled internally by endCall in the pill */}}
+            onClose={clearHeldCall}   // endCall() inside pill signals remote; this just clears state
           />
         )}
       </AnimatePresence>
