@@ -29,6 +29,23 @@ casesApi.interceptors.request.use((config) => {
     return config;
 });
 
+// OData routes are registered at the root level, not under /api
+const ODATA_BASE_URL = CASES_BASE_URL.replace(/\/api$/, '');
+
+export const odataApi = axios.create({
+    baseURL: ODATA_BASE_URL,
+    headers: { 'Content-Type': 'application/json' }
+});
+
+// Attach token to OData requests as well
+odataApi.interceptors.request.use((config) => {
+    const token = localStorage.getItem('accessToken');
+    if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+});
+
 const AI_BASE_URL = import.meta.env.VITE_AI_API_URL || 'http://localhost:5223/api';
 
 export const aiApi = axios.create({

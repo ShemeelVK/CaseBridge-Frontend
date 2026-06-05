@@ -109,6 +109,10 @@ const FirmCasesPage = () => {
     reopened: cases.filter(c => c.status === 'Reopened').length,
     closed: cases.filter(c => c.status === 'Closed').length,
     totalBudget: cases.reduce((sum, c) => sum + (c.budget ?? 0), 0),
+    activeValue: cases.filter(c => c.status !== 'Closed').reduce((sum, c) => sum + (c.budget ?? 0), 0),
+    realizedValue: cases.filter(c => c.status === 'Closed').reduce((sum, c) => sum + (c.budget ?? 0), 0),
+    avgBudget: cases.length > 0 ? cases.reduce((sum, c) => sum + (c.budget ?? 0), 0) / cases.length : 0,
+    stale: cases.filter(c => c.createdAt && new Date(c.createdAt).getTime() < Date.now() - 30 * 24 * 60 * 60 * 1000 && c.status !== 'Closed').length
   };
 
   // Top categories
@@ -120,19 +124,15 @@ const FirmCasesPage = () => {
     .sort((a, b) => b[1] - a[1])
     .slice(0, 4);
 
-  // Junior performance stats (for Lawyer)
-  const juniorStats = associates.map(a => {
-    const assignedCases = cases.filter(c => c.acceptedByUserid === a.Id);
-    return {
-      id: a.Id,
-      name: a.FullName,
-      total: assignedCases.length,
-      open: assignedCases.filter(c => c.status === 'Open').length,
-      inReview: assignedCases.filter(c => c.status === 'InReview').length,
-      reopened: assignedCases.filter(c => c.status === 'Reopened').length,
-      closed: assignedCases.filter(c => c.status === 'Closed').length
-    };
-  }).filter(j => j.total > 0);
+  // Top clients
+  const clientMap: Record<string, number> = {};
+  cases.forEach(c => {
+    const name = c.clientName || 'Unknown Client';
+    clientMap[name] = (clientMap[name] ?? 0) + 1;
+  });
+  const topClients = Object.entries(clientMap)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 4);
 
   const myCases = cases.filter(c => c.acceptedByUserid === user?.id);
   const juniorCases = cases.filter(c => c.acceptedByUserid !== user?.id && c.acceptedByUserid != null);
@@ -243,48 +243,38 @@ const FirmCasesPage = () => {
       </div>
 
       {/* Stats Dashboard */}
-      <div className={`grid grid-cols-2 ${isLawyer ? 'lg:grid-cols-5' : 'lg:grid-cols-3'} gap-4 mb-6`}>
+      <div className={`grid grid-cols-2 ${isLawyer ? 'lg:grid-cols-4' : 'lg:grid-cols-3'} gap-6 mb-8`}>
         {(isLawyer 
           ? [
-              { label: 'Total Cases', value: stats.total, color: 'bg-law-navy', textColor: 'text-white', sub: 'All firm cases', icon: <Briefcase className="w-5 h-5 opacity-70" /> },
-              { label: 'My Cases', value: myCases.length, color: 'bg-accent-gold', textColor: 'text-law-navy', sub: 'Assigned to me', icon: <Users className="w-5 h-5 opacity-70" /> },
-              { label: 'Open', value: stats.open, color: 'bg-blue-50', textColor: 'text-blue-700', sub: 'Awaiting work', icon: <Clock className="w-5 h-5 text-blue-400" /> },
-              { label: 'In Progress', value: stats.inReview + stats.reopened, color: 'bg-amber-50', textColor: 'text-amber-700', sub: 'Being handled', icon: <Briefcase className="w-5 h-5 text-amber-400" /> },
-              { label: 'Associates', value: associates.length, color: 'bg-law-navy/5', textColor: 'text-law-navy', sub: 'In your firm', icon: <Users className="w-5 h-5 text-law-navy/40" /> },
+              { label: 'Total Cases', value: stats.total, bgClass: 'bg-gradient-to-br from-law-navy to-slate-800 text-white', iconColor: 'bg-white/10 text-white', sub: 'All firm cases', icon: <Briefcase className="w-6 h-6" /> },
+              { label: 'Avg Case Value', value: `₹${stats.avgBudget.toLocaleString('en-IN')}`, bgClass: 'bg-gradient-to-br from-indigo-500 to-purple-700 text-white', iconColor: 'bg-white/10 text-white', sub: 'Across firm', icon: <IndianRupee className="w-6 h-6" /> },
+              { label: 'Pending Revenue', value: `₹${stats.activeValue.toLocaleString('en-IN')}`, bgClass: 'bg-gradient-to-br from-amber-400 to-orange-500 text-white', iconColor: 'bg-white/20 text-white', sub: 'From active cases', icon: <Briefcase className="w-6 h-6" /> },
+              { label: 'Realized Revenue', value: `₹${stats.realizedValue.toLocaleString('en-IN')}`, bgClass: 'bg-gradient-to-br from-emerald-500 to-teal-700 text-white', iconColor: 'bg-white/20 text-white', sub: 'From closed cases', icon: <CheckCircle2 className="w-6 h-6" /> },
             ]
           : [
-              { label: 'My Cases', value: myCases.length, color: 'bg-accent-gold', textColor: 'text-law-navy', sub: 'Active Assignments', icon: <Users className="w-5 h-5 opacity-70" /> },
-              { label: 'In Progress', value: stats.inReview + stats.reopened, color: 'bg-amber-50', textColor: 'text-amber-700', sub: 'Current work', icon: <Briefcase className="w-5 h-5 text-amber-400" /> },
-              { label: 'Closed', value: stats.closed, color: 'bg-green-50', textColor: 'text-green-700', sub: 'Completed', icon: <CheckCircle2 className="w-5 h-5 text-green-500" /> },
+              { label: 'My Cases', value: myCases.length, bgClass: 'bg-gradient-to-br from-law-navy to-slate-800 text-white', iconColor: 'bg-white/10 text-white', sub: 'Active Assignments', icon: <Users className="w-6 h-6" /> },
+              { label: 'In Progress', value: stats.inReview + stats.reopened, bgClass: 'bg-gradient-to-br from-amber-400 to-orange-500 text-white', iconColor: 'bg-white/20 text-white', sub: 'Current work', icon: <Briefcase className="w-6 h-6" /> },
+              { label: 'Closed', value: stats.closed, bgClass: 'bg-gradient-to-br from-emerald-500 to-teal-700 text-white', iconColor: 'bg-white/20 text-white', sub: 'Completed', icon: <CheckCircle2 className="w-6 h-6" /> },
             ]
         ).map((stat: any) => (
-          <div key={stat.label} className={`${stat.color} rounded-2xl p-5 shadow-sm`}>
-            <div className="flex items-center justify-between mb-3">
-              <span className={`text-sm font-medium ${stat.textColor} opacity-80`}>{stat.label}</span>
-              {stat.icon}
+          <div key={stat.label} className={`${stat.bgClass} rounded-2xl p-6 shadow-md hover:shadow-lg hover:-translate-y-1 transition-all duration-300 group cursor-pointer relative overflow-hidden`}>
+            {/* Subtle glass overlay light-leak */}
+            <div className="absolute -right-6 -top-6 w-32 h-32 bg-white opacity-5 rounded-full blur-2xl group-hover:opacity-20 transition-opacity duration-500 pointer-events-none"></div>
+            
+            <div className="flex justify-between items-start mb-4 relative z-10">
+              <div className={`p-3 rounded-xl ${stat.iconColor} shadow-sm group-hover:scale-110 transition-transform`}>
+                {stat.icon}
+              </div>
             </div>
-            <p className={`text-3xl font-bold ${stat.textColor}`}>{stat.value}</p>
-            <p className={`text-xs mt-1 ${stat.textColor} opacity-60`}>{stat.sub}</p>
+            <h3 className="text-4xl font-serif tracking-tight font-bold mb-1 relative z-10">{stat.value}</h3>
+            <p className="text-sm font-semibold opacity-90 relative z-10">{stat.label}</p>
+            <p className="text-xs mt-2 font-medium opacity-70 relative z-10">{stat.sub}</p>
           </div>
         ))}
       </div>
 
       {/* Secondary row: Budget + Category breakdown */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-8">
-
-        {/* Total budget */}
-        <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm flex items-center gap-5">
-          <div className="w-14 h-14 rounded-2xl bg-accent-gold/10 flex items-center justify-center shrink-0">
-            <IndianRupee className="w-7 h-7 text-accent-gold" />
-          </div>
-          <div>
-            <p className="text-sm text-law-slate mb-0.5">Total Case Budget</p>
-            <p className="text-2xl font-bold text-law-navy">
-              ₹{stats.totalBudget.toLocaleString('en-IN')}
-            </p>
-            <p className="text-xs text-gray-400 mt-0.5">Across all {stats.total} cases</p>
-          </div>
-        </div>
 
         {/* Top categories */}
         <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm">
@@ -308,33 +298,29 @@ const FirmCasesPage = () => {
             </div>
           )}
         </div>
-        {/* Junior Performance Breakdown (Lawyer Only) */}
-        {isLawyer && juniorStats.length > 0 && (
-          <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm lg:col-span-2">
-            <div className="flex items-center justify-between mb-4">
-              <p className="text-sm font-semibold text-law-navy">Associate Workload Overview</p>
-              <span className="text-xs text-law-slate font-medium">{juniorStats.length} Active Juniors</span>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {juniorStats.map(j => (
-                <div key={j.id} className="p-4 bg-gray-50 rounded-xl border border-gray-100">
-                  <p className="font-bold text-law-navy mb-2">{j.name}</p>
-                  <div className="flex gap-2">
-                    <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-[10px] font-bold rounded uppercase">
-                      {j.inReview} In Progress
-                    </span>
-                    <span className="px-2 py-0.5 bg-green-100 text-green-700 text-[10px] font-bold rounded uppercase">
-                      {j.closed} Closed
-                    </span>
-                    <span className="px-2 py-0.5 bg-gray-200 text-gray-600 text-[10px] font-bold rounded uppercase">
-                      {j.total} Total
-                    </span>
+        
+        {/* Top Clients */}
+        <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm">
+          <p className="text-sm font-semibold text-law-navy mb-3">Key Clients</p>
+          {topClients.length === 0 ? (
+            <p className="text-sm text-gray-400">No data yet</p>
+          ) : (
+            <div className="space-y-2">
+              {topClients.map(([client, count]) => (
+                <div key={client} className="flex items-center gap-3">
+                  <span className="text-xs text-law-slate w-36 truncate">{client}</span>
+                  <div className="flex-1 bg-gray-100 rounded-full h-1.5">
+                    <div
+                      className="bg-law-navy h-1.5 rounded-full transition-all"
+                      style={{ width: `${(count / stats.total) * 100}%` }}
+                    />
                   </div>
+                  <span className="text-xs font-semibold text-law-navy w-4 text-right">{count}</span>
                 </div>
               ))}
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-3 mb-6">
